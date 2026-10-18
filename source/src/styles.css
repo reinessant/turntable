@@ -1,0 +1,378 @@
+@import "../design-reference/tokens.css";
+@import "../design-reference/deck.css";
+@import "./player-reference.css";
+@import "./crate-reference.css";
+@import "./import-reference.css";
+@import "./plugins.css";
+@import "./settings.css";
+
+/* =====================================================================
+   TYPE — interface text is Inter Tight (Latin + Cyrillic). Lyrics keep their
+   faces (Mona Sans for the active line, Geist for the rest); titles use the
+   same Mona Sans cut as the active lyric so the two big voices match.
+   ===================================================================== */
+@font-face {
+  font-family: "Inter Tight";
+  src: url("../design-reference/fonts/candidates/inter-tight-latin-wght-normal.woff2") format("woff2");
+  font-weight: 100 900; font-display: block;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215;
+}
+@font-face {
+  font-family: "Inter Tight";
+  src: url("../design-reference/fonts/candidates/inter-tight-cyrillic-wght-normal.woff2") format("woff2");
+  font-weight: 100 900; font-display: block;
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+:root {
+  --font: "Inter Tight", "Geist", ui-sans-serif, system-ui, sans-serif;
+  --lyric-font: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --display: "Mona Sans", "Inter Tight", ui-sans-serif, sans-serif;
+  --mono: var(--font);
+  --t-display:  650 46px/1.02 var(--display);  --tr-display: -0.03em;  --st-display: 106%;
+  --t-title:    650 30px/1.05 var(--display);  --tr-title:   -0.025em; --st-title:   106%;
+  --t-lyric:    500 22px/1.3  var(--lyric-font);
+  --t-lyric-on: 600 30px/1.2  "Mona Sans", var(--lyric-font);   /* unchanged look; Cyrillic still falls back to Geist */
+  --t-body-lg:  500 16px/1.4  var(--font);
+  --t-body:     500 14px/1.4  var(--font);
+  --t-small:    500 13px/1.4  var(--font);
+  --t-micro:    600 11px/1    var(--font);  --tr-micro: 0.12em;
+  --t-mono:     500 13px/1    var(--font);
+}
+body { font-feature-settings: "cv11", "ss03"; letter-spacing: -0.005em; }
+.mono { font-feature-settings: "tnum"; letter-spacing: 0; }
+.pill-btn { font: 550 13px/1 var(--font); letter-spacing: 0; }
+
+/* Artboard fit by zoom (see main.tsx) — renders at the final size instead of resampling a scaled bitmap. */
+.screen { left: var(--ox, 0px); top: var(--oy, 0px); transform: none; zoom: var(--fit, 1); }
+.grain { opacity: .04; }
+
+/* Crate: the sleeve is the subject — sleeve, caption and footer hint share the screen's centre line. */
+.crate { left: 50%; }
+.caption { left: 50%; width: 760px; margin-left: -380px; text-align: center; }
+.caption .sub { justify-content: center; }
+/* the footer hint sits on the same centre line, whatever the widths of the preview text and counter */
+.foot { position: absolute; }
+.foot .hint { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+
+/* Label art is a pre-scaled canvas (labelArt.tsx) printed edge to edge — no white paper rim around the
+   cover (on dark covers it read as a white centre); a hairline dark edge keeps it crisp on the vinyl. */
+.spin .label { background: #111; box-shadow: 0 0 0 1px rgba(0,0,0,.45); }
+.spin .label .label-art { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; display: block; }
+
+.peek canvas.lbl { inset: 33%; width: 34%; height: 34%; display: block; }
+
+/* Track carousel: small, crisp records — no squashing, one tight shadow, label as a pre-scaled canvas. */
+.cdisc { left: -58px; top: -58px; width: 116px; height: 116px; transform-origin: 50% 50%; }
+.carousel-caption { top: 236px; }
+.cdisc .v {
+  background:
+    repeating-radial-gradient(circle, var(--vinyl-groove, rgba(255,255,255,.045)) 0 .5px, transparent .5px 1.6px),
+    radial-gradient(circle, var(--vinyl, #1c1c1f) 0 60%, var(--vinyl-edge, #121214) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.09), 0 2px 3px rgba(0,0,0,.35), 0 10px 22px rgba(0,0,0,.32);
+}
+.cdisc .l { position: absolute; inset: 31%; width: 38%; height: 38%; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.45); display: block; }
+.cdisc .sh { -webkit-mask: radial-gradient(circle, transparent 39%, #000 41%); mask: radial-gradient(circle, transparent 39%, #000 41%); }
+.cdisc .ringfocus { inset: -7px; border-color: var(--ink-4); }
+.cdisc:not(.active):hover .v { box-shadow: inset 0 0 0 1px rgba(255,255,255,.18), 0 2px 3px rgba(0,0,0,.35), 0 10px 22px rgba(0,0,0,.32); }
+.carousel-caption { font: 500 14px/1.4 var(--font); }
+
+/* The deck is drawn top-down; a 3D tilt only blurred the rotating record and skewed its label. */
+.stage { perspective: none; }
+.tilt { transform: none; transition: none; }
+
+.titlebar { position: fixed; inset: 0 0 auto; height: 36px; z-index: 120; display: flex; justify-content: flex-end; background: transparent; user-select: none; }
+.titlebar-controls { display: flex; height: 36px; }
+.titlebar button { width: 46px; height: 36px; display: grid; place-items: center; color: var(--ink-2); transition: color 120ms, background-color 120ms; }
+.titlebar button:hover { color: var(--ink); background: var(--ink-6); }
+.titlebar .titlebar-close:hover { color: #fff; background: #c42b1c; }
+
+/* Flight layer is in viewport pixels, outside the scaled artboard. */
+.app.flight-active { pointer-events: none; }
+.app.to-player .player-screen, .app.to-crate .crate-screen { visibility: hidden; }
+.flight-layer { position: fixed; inset: 0; z-index: 50; pointer-events: none; overflow: hidden; }
+.flight-cover, .flight-record { position: absolute; transform-origin: 0 0; will-change: transform, opacity; }
+.flight-cover { border-radius: 3px; overflow: hidden; box-shadow: var(--shadow-card); z-index: 2; }
+.flight-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.flight-record { border-radius: 50%; overflow: hidden; z-index: 1; box-shadow: 0 18px 40px rgba(0,0,0,.35); }
+.flight-record .spin { position: absolute; inset: 0; }
+/* Crate → player reveal (RevealTransition). Above the title bar: only the record is visible in the dark. */
+.reveal-layer { position: fixed; inset: 0; z-index: 130; pointer-events: auto; overflow: hidden; }
+.reveal-layer.is-waiting .reveal-disc { cursor: pointer; }
+/* The darkness, with a soft-edged hole: --x --y centre, --r hole radius, --f feather, --light warm wave front. */
+.reveal-dark {
+  position: absolute; inset: 0; --x: 50%; --y: 50%; --r: 0px; --f: 0px; --light: 0;
+  background: radial-gradient(circle at var(--x) var(--y),
+    transparent var(--r), rgba(255, 228, 190, var(--light)) calc(var(--r) + var(--f) * .4), var(--dark, #000) calc(var(--r) + var(--f)));
+}
+.reveal-disc { position: absolute; border-radius: 50%; will-change: transform; box-shadow: 0 22px 50px rgba(0,0,0,.5); }
+.reveal-rotor { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; }
+.reveal-rotor > .spin { position: absolute; }
+.reveal-disc > .sheen { position: absolute; }
+.reveal-crate-look { position: absolute; inset: 0; border-radius: 50%; }
+.reveal-crate-label { position: absolute; left: 33%; top: 33%; width: 34%; height: 34%; border-radius: 50%; display: block; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+/* the impact on tap: warm flash + shock ring around the record */
+.reveal-flash {
+  position: absolute; border-radius: 50%; pointer-events: none; mix-blend-mode: screen;
+  background: radial-gradient(closest-side, rgba(255, 244, 228, .95), rgba(255, 226, 190, .38) 38%, rgba(255, 214, 170, .08) 70%, transparent);
+}
+.reveal-ring {
+  position: absolute; border-radius: 50%; pointer-events: none;
+  border: 1.5px solid rgba(255, 240, 222, .85);
+  box-shadow: 0 0 18px 2px rgba(255, 226, 190, .35), inset 0 0 18px 2px rgba(255, 226, 190, .25);
+}
+
+/* the tap: arm swings in fast with a micro overshoot, then drifts with deck.css's 900 ms */
+.deck.arm-swing .arm-rot { transition-duration: var(--arm-swing-ms, 300ms); transition-timing-function: var(--arm-swing-ease, ease-out); }
+
+.flight-guide { display: none; position: absolute; border: 1px solid #ff4d70; z-index: 3; }
+.flight-outline .flight-guide { display: block; }
+.flight-outline .flight-cover { outline: 1px solid #64e0ff; }
+.flight-outline .flight-record { outline: 1px solid #f2d56c; }
+
+.deck-container { position: relative; width: 680px; height: 428.75px; }
+.deck-container > .deck { width: 680px; height: 428.75px; }
+.platter-hit { position: absolute; left: 45px; top: 35px; width: 302px; height: 302px; border-radius: 50%; cursor: grab; touch-action: none; }
+.platter-hit:active { cursor: grabbing; }
+/* Plinth edge + shadow for the flat (top-down) deck. The reference drew a 12 mm "front face" for the
+   3D tilt; flat, with all corners rounded, it read as a black pill under the deck. Now: a thin edge
+   rounded only at the bottom, and a soft layered shadow instead of one hard dark band. */
+.deck .plinth::after {
+  bottom: calc(var(--k) * -3.5px); height: calc(var(--k) * 10px);
+  border-radius: 0 0 calc(var(--k) * 9px) calc(var(--k) * 9px);
+  background: var(--front, linear-gradient(180deg, #151517, #0b0b0c));
+}
+.deck .plinth {
+  box-shadow:
+    0 1px 1px rgba(0,0,0,.18),
+    0 calc(var(--k) * 4px) calc(var(--k) * 8px) rgba(0,0,0,.16),
+    0 calc(var(--k) * 16px) calc(var(--k) * 32px) calc(var(--k) * -6px) rgba(0,0,0,.26),
+    0 calc(var(--k) * 44px) calc(var(--k) * 80px) calc(var(--k) * -18px) rgba(0,0,0,.30);
+}
+.room-light .deck .plinth {
+  box-shadow:
+    0 1px 1px rgba(0,0,0,.10),
+    0 calc(var(--k) * 4px) calc(var(--k) * 8px) rgba(0,0,0,.08),
+    0 calc(var(--k) * 16px) calc(var(--k) * 32px) calc(var(--k) * -6px) rgba(0,0,0,.14),
+    0 calc(var(--k) * 44px) calc(var(--k) * 80px) calc(var(--k) * -18px) rgba(0,0,0,.16);
+}
+
+/* Everything around the deck floats a little — each block on its own slow path and phase, so the screen
+   breathes without moving in lockstep. `translate` composes with the blocks' own transforms (and with
+   the transitions' GSAP tweens on `transform`). */
+@keyframes drift-a { 0%, 100% { translate: 0 0; } 33% { translate: 3px -8px; } 66% { translate: -2.5px -3px; } }
+@keyframes drift-b { 0%, 100% { translate: 0 0; } 40% { translate: -3px -9px; } 75% { translate: 2.5px -2.5px; } }
+@keyframes drift-c { 0%, 100% { translate: 0 0; } 50% { translate: 0 -7px; } }
+.player-screen .left { animation: drift-a 7.2s ease-in-out infinite; }
+.player-screen .lyrics { animation: drift-b 8.4s ease-in-out -3.4s infinite; }
+.player-screen .capsule { animation: drift-c 6.2s ease-in-out -1.8s infinite; }
+.player-screen .track-rail, .player-screen .rail-caption { animation: drift-c 7.8s ease-in-out -4.6s infinite; }
+/* The reveal raises the player UI through --ui-y, not a GSAP transform: GSAP folds the drift's live `translate`
+   into the transform it writes and leaves it behind on clear — the blocks then jumped a few px as the reveal ended. */
+.player-screen :is(.header, .carousel, .carousel-caption, .left, .lyrics) { transform: translateY(var(--ui-y, 0px)); }
+.player-screen .capsule { transform: translateX(-50%) translateY(var(--ui-y, 0px)); }
+@media (prefers-reduced-motion: reduce) {
+  .player-screen .left, .player-screen .lyrics, .player-screen .capsule, .player-screen .track-rail, .player-screen .rail-caption { animation: none; }
+}
+
+/* A deck turned around its spindle (--deck-rot): the light, the shadow and the readouts stay in screen space.
+   Shadow offsets are counter-rotated so the drop shadow still falls straight down. */
+.deck-container { --rs: sin(var(--deck-rot, 0deg)); --rc: cos(var(--deck-rot, 0deg)); }
+.deck-container .deck .plinth {
+  box-shadow:
+    calc(var(--rs) * 1px) calc(var(--rc) * 1px) 1px rgba(0,0,0,.18),
+    calc(var(--rs) * var(--k) * 4px) calc(var(--rc) * var(--k) * 4px) calc(var(--k) * 8px) rgba(0,0,0,.16),
+    calc(var(--rs) * var(--k) * 16px) calc(var(--rc) * var(--k) * 16px) calc(var(--k) * 32px) calc(var(--k) * -6px) rgba(0,0,0,.26),
+    calc(var(--rs) * var(--k) * 44px) calc(var(--rc) * var(--k) * 44px) calc(var(--k) * 80px) calc(var(--k) * -18px) rgba(0,0,0,.30);
+}
+.room-light .deck-container .deck .plinth {
+  box-shadow:
+    calc(var(--rs) * 1px) calc(var(--rc) * 1px) 1px rgba(0,0,0,.10),
+    calc(var(--rs) * var(--k) * 4px) calc(var(--rc) * var(--k) * 4px) calc(var(--k) * 8px) rgba(0,0,0,.08),
+    calc(var(--rs) * var(--k) * 16px) calc(var(--rc) * var(--k) * 16px) calc(var(--k) * 32px) calc(var(--k) * -6px) rgba(0,0,0,.14),
+    calc(var(--rs) * var(--k) * 44px) calc(var(--rc) * var(--k) * 44px) calc(var(--k) * 80px) calc(var(--k) * -18px) rgba(0,0,0,.16);
+}
+.deck .sheen { rotate: calc(-1 * var(--deck-rot, 0deg)); }
+.deck [data-act]::after, .arm-seek { rotate: calc(-1 * var(--deck-rot, 0deg)); }
+
+/* Tonearm grab area: invisible — the arm itself is the handle (no ring, no tooltip). */
+.arm-hit { position: absolute; width: 44px; height: 44px; border-radius: 50%; cursor: grab; touch-action: none; }
+.arm-hit:active { cursor: grabbing; }
+/* while the arm is dragged it follows the hand 1:1 (no 900 ms easing lag) */
+.deck.arm-dragging .arm-rot, .deck.arm-dragging .arm-shadow { transition: none !important; }
+/* where the needle will land: track + time, next to the stylus while dragging */
+.arm-seek {
+  position: absolute; z-index: 5; pointer-events: none; white-space: nowrap; transform: translate(-50%, calc(-100% - 22px));
+  padding: 7px 10px; border-radius: 8px; background: rgba(18,18,20,.88); box-shadow: 0 6px 18px rgba(0,0,0,.35);
+  font: 500 12px/1.2 var(--font); color: #f3f1ec; display: flex; gap: 8px; align-items: baseline;
+}
+.arm-seek .mono { color: rgba(243,241,236,.5); font-size: 12px; }
+/* The stage spans the full width (to centre the deck) — it must not swallow clicks meant for the tracklist and lyrics. */
+.stage, .stage .group { pointer-events: none; }
+.stage .tilt { pointer-events: auto; }
+
+/* Volume knob: the cap stays put (so its tooltip stays upright); only its index mark turns, and a thin
+   scale around it shows the level. Drag up/down or use the wheel. */
+.deck .knob.small::before {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: linear-gradient(0deg, transparent 46%, rgba(0,0,0,.6) 46% 54%, transparent 54%) 50% 9% / 1.5px 34% no-repeat;
+  rotate: var(--volume-angle, 0deg); transition: rotate 90ms linear;
+}
+.deck .vol-ring {
+  border-radius: 50%; pointer-events: none;
+  background: conic-gradient(from -130deg, rgba(255,255,255,.62) 0 calc(var(--vol, .78) * 260deg), rgba(255,255,255,.13) 0 260deg, transparent 0);
+  -webkit-mask: radial-gradient(circle, transparent 62%, #000 64%, #000 74%, transparent 76%);
+          mask: radial-gradient(circle, transparent 62%, #000 64%, #000 74%, transparent 76%);
+}
+
+/* Tracklist rows are <button>s: stretch them like the reference's divs. */
+.tracks .trk { width: 100%; text-align: left; }
+
+/* Volume: icon toggles mute, hover opens a vertical slider in its own mini-capsule (FIX_ROUND_3 §7.6). */
+.volume-control { position: relative; display: flex; }
+.volume-control.muted .icon-btn { color: var(--ink-4); }
+.volume-pop {
+  position: absolute; left: 50%; bottom: calc(100% + 10px); width: 36px; height: 132px; margin-left: -18px;
+  display: grid; place-items: center; border-radius: var(--r-pill);
+  background: var(--glass-bg); border: 1px solid var(--glass-border); box-shadow: var(--glass-hi), var(--glass-shadow);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  opacity: 0; transform: translateY(6px); pointer-events: none;
+  transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+.volume-pop::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 12px; } /* hover bridge */
+.volume-control:hover .volume-pop, .volume-control:focus-within .volume-pop { opacity: 1; transform: none; pointer-events: auto; }
+.volume-pop input {
+  -webkit-appearance: none; appearance: none; writing-mode: vertical-lr; direction: rtl;
+  width: 20px; height: 104px; margin: 0; background: transparent; cursor: pointer;
+}
+.volume-pop input::-webkit-slider-runnable-track {
+  width: 3px; border-radius: 3px;
+  background: linear-gradient(0deg, var(--ink) var(--v, 0%), var(--ink-5) var(--v, 0%));
+}
+.volume-pop input::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 11px; height: 11px; margin-left: -4px; border-radius: 50%;
+  background: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.4);
+}
+
+/* Peeking record in the crate: same vinyl as crate.html's vinylHTML(). */
+.peek-vinyl {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: repeating-radial-gradient(circle, var(--vinyl-groove, rgba(255,255,255,.035)) 0 .5px, transparent .5px 1.8px), radial-gradient(circle, var(--vinyl, #18181b) 0 75%, var(--vinyl-edge, #111113));
+  box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 10px 30px rgba(0,0,0,.5);
+}
+
+.error-screen { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px; background: #1b1a22; color: #f3f1ec; font: 16px Geist,sans-serif; }
+.error-screen pre { max-width: 80vw; white-space: pre-wrap; font: 14px Geist Mono,monospace; }
+.error-screen button { padding: 10px 16px; border: 1px solid #888; border-radius: 20px; }
+
+/* ---------- SoundCloud: crate header account, menu, attribution ---------- */
+.sc-btn { display: inline-flex; align-items: center; gap: 8px; }
+.sc-btn svg { color: #ff5500; }
+.sc-btn:disabled { opacity: .7; cursor: progress; }
+.sc-btn.open { background: rgba(var(--ink-rgb), .12); }
+.sc-avatar { width: 18px; height: 18px; margin-left: -4px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 1px rgba(var(--ink-rgb), .25); }
+.sc-account { position: relative; }
+.sc-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); min-width: 230px; padding: 6px; z-index: 20;
+  display: flex; flex-direction: column; gap: 2px; border-radius: 14px;
+  background: var(--glass-bg); border: 1px solid var(--glass-border); box-shadow: var(--glass-hi), var(--glass-shadow);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  animation: sc-menu-in 160ms var(--ease-out) both;
+}
+@keyframes sc-menu-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.sc-menu-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px 9px; font: 500 12px/1.2 var(--font); color: var(--ink-3); border-bottom: 1px solid rgba(var(--ink-rgb), .08); margin-bottom: 3px; }
+.sc-menu-head svg { color: #ff5500; flex: none; }
+.sc-menu-head b { color: var(--ink); font-weight: 600; }
+.sc-menu button { text-align: left; padding: 9px 10px; border-radius: 9px; font: 500 13px/1 var(--font); color: var(--ink-2); }
+.sc-menu button:hover:not(:disabled) { background: rgba(var(--ink-rgb), .08); color: var(--ink); }
+.sc-menu button:disabled { opacity: .5; }
+.sc-source { display: inline-flex; align-items: center; gap: 7px; }
+.sc-source svg:first-child { color: #ff5500; }
+.sc-tag { display: inline-flex; align-items: center; color: #ff5500; margin-right: 2px; }
+
+/* ---------- "Add from SoundCloud" sheet ---------- */
+.sc-sheet-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(6, 6, 9, .55); backdrop-filter: blur(14px) saturate(.9); -webkit-backdrop-filter: blur(14px) saturate(.9); animation: sc-fade 200ms var(--ease-out) both; }
+@keyframes sc-fade { from { opacity: 0; } to { opacity: 1; } }
+.sc-sheet {
+  width: 760px; height: 640px; display: flex; flex-direction: column; border-radius: 22px; overflow: hidden;
+  /* nearly solid: the crate behind must not read through the list */
+  background: linear-gradient(180deg, rgba(34, 32, 41, .96), rgba(22, 21, 27, .97)); border: 1px solid var(--glass-border); box-shadow: var(--glass-hi), 0 40px 120px rgba(0,0,0,.55);
+  animation: sc-rise 320ms var(--ease-out) both;
+}
+@keyframes sc-rise { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+.sc-sheet header { display: flex; align-items: center; gap: 16px; padding: 18px 18px 14px 24px; border-bottom: 1px solid rgba(var(--ink-rgb), .08); }
+.sc-title { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+.sc-title svg { color: #ff5500; }
+.sc-title h2 { font: 650 17px/1 var(--display); letter-spacing: -.01em; color: var(--ink); }
+.sc-tabs { display: flex; gap: 2px; padding: 3px; border-radius: var(--r-pill); background: rgba(var(--ink-rgb), .06); }
+.sc-tabs button { padding: 7px 13px; border-radius: var(--r-pill); font: 550 12.5px/1 var(--font); color: var(--ink-3); transition: background 200ms, color 200ms; }
+.sc-tabs button:hover:not(.on) { color: var(--ink); }
+.sc-tabs button.on { background: var(--ink); color: var(--inverse); }
+.sc-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 18px 24px; gap: 16px; }
+.sc-hint { color: var(--ink-4); font: 500 13px/1.5 var(--font); text-align: center; margin: auto 0; }
+.sc-link { display: flex; gap: 10px; }
+.sc-sheet input:not([type="checkbox"]) {
+  flex: 1; height: 38px; padding: 0 16px; border-radius: var(--r-pill); font: 500 13.5px/1 var(--font); color: var(--ink);
+  background: rgba(var(--ink-rgb), .06); border: 1px solid rgba(var(--ink-rgb), .1); outline: none;
+}
+.sc-sheet input:not([type="checkbox"]):focus { border-color: rgba(var(--ink-rgb), .3); background: rgba(var(--ink-rgb), .08); }
+.sc-sheet input::placeholder { color: var(--ink-4); }
+.sc-preview { display: flex; gap: 20px; align-items: flex-start; padding: 18px; border-radius: 16px; background: rgba(var(--ink-rgb), .05); animation: sc-rise 260ms var(--ease-out) both; }
+.sc-preview-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.sc-preview-text .mono { color: var(--ink-4); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+.sc-preview-text h3 { font: 700 22px/1.15 var(--display); letter-spacing: -.02em; color: var(--ink); margin-top: 2px; }
+.sc-preview-text .sub { color: var(--ink-3); font: 500 13px/1.3 var(--font); }
+.sc-preview-text ol { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sc-preview-text li { display: flex; justify-content: space-between; gap: 12px; font: 500 12.5px/1.2 var(--font); color: var(--ink-2); }
+.sc-preview-text li .mono { text-transform: none; }
+.sc-preview-text li.off { color: var(--ink-4); text-decoration: line-through; }
+.sc-preview-text li.more { color: var(--ink-4); }
+.sc-preview .warn { margin-top: 8px; color: #ff9466; font: 500 12.5px/1.3 var(--font); }
+.sc-art { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex: none; background: rgba(var(--ink-rgb), .08); box-shadow: 0 0 0 1px rgba(var(--ink-rgb), .08); }
+.sc-art.big { width: 132px; height: 132px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+.sc-art.empty { display: grid; place-items: center; color: rgba(var(--ink-rgb), .35); }
+.sc-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; margin: 0 -10px; padding: 0 10px; }
+.sc-row { display: flex; align-items: center; gap: 14px; padding: 8px 10px; border-radius: 12px; transition: background 160ms; }
+.sc-row:hover { background: rgba(var(--ink-rgb), .05); }
+.sc-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.sc-row-text b { font: 600 13.5px/1.2 var(--font); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-row-text span { font: 500 12px/1.2 var(--font); color: var(--ink-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-row .mono { color: var(--ink-4); font-size: 11.5px; }
+.sc-row.pick { cursor: pointer; }
+.sc-row.pick.on { background: rgba(255, 85, 0, .10); }
+.sc-row.pick.off { opacity: .45; cursor: default; }
+.sc-row input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 18px; height: 18px; flex: none; border-radius: 5px; border: 1.5px solid rgba(var(--ink-rgb), .35); display: grid; place-items: center; transition: background 140ms, border-color 140ms; }
+.sc-row input[type="checkbox"]:checked { background: #ff5500; border-color: #ff5500; }
+.sc-row input[type="checkbox"]:checked::after { content: ""; width: 9px; height: 5px; margin-top: -2px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(-45deg); }
+.sc-likes { gap: 12px; }
+.sc-likes-bar { display: flex; gap: 8px; }
+.sc-likes-foot { display: flex; gap: 10px; padding-top: 12px; border-top: 1px solid rgba(var(--ink-rgb), .08); }
+.sc-likes-foot input { max-width: 260px; }
+.sc-likes-foot .pill-btn { flex: 1; justify-content: center; }
+.sc-sheet .pill-btn.done { color: var(--ink-3); }
+.sc-sheet .pill-btn:disabled { opacity: .55; cursor: default; }
+.sc-error { margin: 0 24px 16px; padding: 10px 14px; border-radius: 10px; background: rgba(255, 80, 60, .12); color: #ffb3a6; font: 500 12.5px/1.35 var(--font); }
+.sc-remove { margin-left: 10px; color: var(--ink-4); font-size: 11px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(var(--ink-rgb), .25); }
+.sc-remove:hover { color: var(--ink-2); }
+.empty-actions { display: flex; gap: 10px; justify-content: center; }
+
+/* ---------- seek bar: drag to scrub, time tip under the pointer ---------- */
+.bar { position: relative; touch-action: none; }
+.bar .track { transition: height 140ms var(--ease-out); }
+.bar:hover .track, .bar.dragging .track { height: 5px; }
+.bar.dragging .thumb { opacity: 1; transform: scale(1.25); }
+.bar-tip { position: absolute; bottom: calc(100% + 6px); transform: translateX(-50%); padding: 4px 7px; border-radius: 6px; pointer-events: none;
+  background: rgba(18,18,20,.9); color: #f3f1ec; font-size: 11px; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,.3); }
+
+/* ---------- launch: until the wave has passed, the window is see-through and the app shows only inside the wave's circle ---------- */
+html.launching, html.launching body { background: transparent !important; }
+html.launching #root {
+  position: fixed; inset: 0;
+  -webkit-mask: radial-gradient(circle at var(--wx, 50%) var(--wy, 50%), #000 var(--wr, 0px), transparent calc(var(--wr, 0px) + var(--wf, 0px) + .5px));
+          mask: radial-gradient(circle at var(--wx, 50%) var(--wy, 50%), #000 var(--wr, 0px), transparent calc(var(--wr, 0px) + var(--wf, 0px) + .5px));
+}
+html.launching #splash .rim { background: radial-gradient(circle at var(--wx, 50%) var(--wy, 50%), transparent var(--wr, 0px), rgba(255, 228, 190, var(--wl, 0)) calc(var(--wr, 0px) + var(--wf, 0px) * .4), transparent calc(var(--wr, 0px) + var(--wf, 0px))); }
+/* launch: the albums wait for the record to go, then rise into the opened room (Intro.tsx) */
+html.albums-hold .screen .crate, html.albums-hold .screen .caption, html.albums-hold .screen .foot { opacity: 0; translate: 0 34px; scale: .965; }
+html.albums-in .screen .crate { transition: opacity .55s ease-out, translate 1s cubic-bezier(.16,1,.3,1), scale 1s cubic-bezier(.16,1,.3,1); }
+html.albums-in .screen .caption { transition: opacity .55s ease-out .12s, translate 1s cubic-bezier(.16,1,.3,1) .12s, scale 1s cubic-bezier(.16,1,.3,1) .12s; }
+html.albums-in .screen .foot { transition: opacity .6s ease-out .24s, translate 1s cubic-bezier(.16,1,.3,1) .24s, scale 1s cubic-bezier(.16,1,.3,1) .24s; }

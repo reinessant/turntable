@@ -1,0 +1,10 @@
+node_modules/
+dist/
+target/
+release/
+*.exe
+*.pdb
+.env.local
+.env.*.local
+.DS_Store
+Thumbs.db

@@ -1,0 +1,95 @@
+/* Welcome screen. Its own fixed palette: it must read the same over a light or a dark room. */
+.welcome {
+  --ink-rgb: 243, 241, 236;
+  --ink: rgba(var(--ink-rgb), .94); --ink-2: rgba(var(--ink-rgb), .64); --ink-3: rgba(var(--ink-rgb), .46);
+  --ink-4: rgba(var(--ink-rgb), .28); --ink-5: rgba(var(--ink-rgb), .12); --ink-6: rgba(var(--ink-rgb), .06);
+  --inverse: #121214;
+  position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 44px 16px 20px;
+  background: rgba(6, 6, 9, .62); backdrop-filter: blur(16px) saturate(.9); -webkit-backdrop-filter: blur(16px) saturate(.9);
+  color: var(--ink); animation: wl-fade 260ms var(--ease-out) both;
+}
+.welcome.closing { animation: wl-out 220ms ease-in both; }
+@keyframes wl-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wl-out { to { opacity: 0; } }
+@keyframes wl-rise { from { opacity: 0; transform: translateY(16px) scale(.985); } to { opacity: 1; transform: none; } }
+
+.wl-card {
+  width: min(620px, 100%); max-height: 100%; overflow: hidden; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; padding: 20px 40px 22px; border-radius: 24px;
+  background: linear-gradient(180deg, rgba(34, 32, 41, .97), rgba(22, 21, 27, .98));
+  border: 1px solid var(--glass-border); box-shadow: var(--glass-hi), 0 40px 120px rgba(0, 0, 0, .55);
+  animation: wl-rise 380ms var(--ease-out) 60ms both;
+}
+/* only the middle scrolls: the language switch and the button stay put */
+.wl-scroll { flex: 1; min-height: 0; width: calc(100% + 32px); margin: 0 -16px; padding: 0 16px; overflow-y: auto; display: flex; flex-direction: column; align-items: center; scrollbar-width: thin; scrollbar-color: var(--ink-5) transparent; }
+
+/* language switch, top centre */
+.wl-lang { display: flex; gap: 2px; padding: 3px; border-radius: var(--r-pill); background: var(--ink-6); }
+.wl-lang button { padding: 7px 16px; border-radius: var(--r-pill); font: 550 12.5px/1 var(--font); color: var(--ink-3); transition: background 200ms, color 200ms; }
+.wl-lang button:hover:not(.on) { color: var(--ink); }
+.wl-lang button.on { background: var(--ink); color: var(--inverse); }
+
+.wl-head { display: flex; flex-direction: column; align-items: center; margin-top: 14px; text-align: center; }
+.wl-record {
+  width: 44px; height: 44px; border-radius: 50%; margin-bottom: 10px; flex: none; position: relative;
+  background:
+    repeating-radial-gradient(circle, rgba(255, 255, 255, .05) 0 .5px, transparent .5px 1.7px),
+    conic-gradient(from 20deg, transparent 0 30%, rgba(255, 255, 255, .13) 38%, transparent 46% 80%, rgba(255, 255, 255, .09) 88%, transparent),
+    radial-gradient(circle, #1c1c20 0 60%, #101012 100%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .08), 0 10px 26px rgba(0, 0, 0, .5);
+  animation: wl-spin 5.4s linear infinite;
+}
+.wl-record::after { content: ""; position: absolute; inset: 38%; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 5px rgba(var(--ink-rgb), .12); }
+@keyframes wl-spin { to { transform: rotate(360deg); } }
+.wl-eyebrow { font: var(--t-micro); letter-spacing: var(--tr-micro); text-transform: uppercase; color: var(--ink-3); }
+.wl-head h1 { margin: 8px 0 0; font: var(--t-display); letter-spacing: var(--tr-display); font-stretch: var(--st-display); color: var(--ink); }
+.wl-lead { margin: 10px 0 0; max-width: 540px; text-align: center; font: var(--t-body); font-size: 14.5px; line-height: 1.55; color: var(--ink-2); text-wrap: balance; }
+
+.wl-features { list-style: none; margin: 18px 0 0; padding: 0; width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; flex: none; }
+.wl-features li { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.wl-features b { font: 650 13.5px/1.2 var(--font); color: var(--ink); }
+.wl-features span { font: 500 12.5px/1.45 var(--font); color: var(--ink-3); }
+
+.wl-feedback { width: 100%; box-sizing: border-box; flex: none; margin-top: 18px; padding: 16px 20px 8px; border-radius: 18px; background: var(--ink-6); border: 1px solid var(--ink-5); }
+.wl-feedback h2 { margin: 0; font: 650 16px/1.2 var(--display); letter-spacing: -.01em; color: var(--ink); }
+.wl-feedback p { margin: 6px 0 12px; font: 500 12.5px/1.5 var(--font); color: var(--ink-3); }
+.wl-contact { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--ink-5); }
+.wl-ico { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--ink-6); color: var(--ink-2); }
+.wl-ico svg { width: 15px; height: 15px; display: block; }
+.wl-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.wl-who span { font: var(--t-micro); letter-spacing: var(--tr-micro); text-transform: uppercase; color: var(--ink-4); }
+.wl-who b { font: 600 14.5px/1.1 var(--font); color: var(--ink); overflow: hidden; text-overflow: ellipsis; user-select: text; }
+.wl-contact .pill-btn { gap: 7px; justify-content: center; }
+.wl-contact .pill-btn:not(.solid) { min-width: 104px; }
+.wl-contact .pill-btn.done { color: var(--ink-2); }
+
+.wl-foot { margin-top: 16px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.wl-foot > span { font: 500 12px/1.4 var(--font); color: var(--ink-4); }
+.wl-start { height: 40px; padding: 0 34px; font-size: 14px; }
+.wl-foot .pill-btn:focus-visible, .wl-lang button:focus-visible { outline: 1.5px solid rgba(var(--ink-rgb), .55); outline-offset: 3px; }
+
+@media (max-width: 600px), (max-height: 640px) {
+  .wl-card { padding: 16px 22px 18px; }
+  .wl-features { grid-template-columns: 1fr; gap: 14px; }
+  .wl-record { width: 40px; height: 40px; margin-bottom: 8px; }
+  .wl-head { margin-top: 12px; }
+  .wl-head h1 { font-size: 38px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wl-record, .wl-card, .welcome { animation: none; }
+}
+
+/* buttons side by side under the welcome text */
+.wl-actions { display: flex; gap: 10px; }
+
+/* quick guide: the same card, a numbered list in the middle; it opens over the welcome screen */
+.welcome.guide { z-index: 100; }
+.gd-card { width: min(660px, 100%); }
+.gd-head h1 { font-size: 34px; }
+.gd-head p { margin: 8px 0 0; font: 500 13.5px/1.4 var(--font); color: var(--ink-3); }
+.gd-steps { list-style: none; margin: 20px 0 8px; padding: 0; width: 100%; display: flex; flex-direction: column; }
+.gd-steps li { display: flex; gap: 16px; padding: 14px 0; border-top: 1px solid var(--ink-5); }
+.gd-n { flex: none; width: 26px; height: 26px; margin-top: 1px; display: grid; place-items: center; border-radius: 50%; background: var(--ink-6); border: 1px solid var(--ink-5); font: 650 12px/1 var(--font); font-feature-settings: "tnum"; color: var(--ink-2); }
+.gd-steps b { font: 650 14.5px/1.2 var(--font); color: var(--ink); }
+.gd-steps p { margin: 5px 0 0; font: 500 13px/1.55 var(--font); color: var(--ink-3); }
+.gd-steps kbd { display: inline-block; padding: 2px 6px 3px; margin: 0 1px; border-radius: 5px; background: var(--ink-6); border: 1px solid var(--ink-5); font: 600 11.5px/1 var(--font); color: var(--ink-2); white-space: nowrap; }

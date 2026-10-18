@@ -1,0 +1,229 @@
+/* =====================================================================
+   MINI — a portable cassette recorder (after the classic top-loading
+   voice recorders): black plastic, speaker grille, the tape behind a
+   smoked door, six chunky piano keys. The window is transparent around it.
+   ===================================================================== */
+@font-face { font-family: "Geist Mono"; src: url("../design-reference/fonts/geist-mono-latin-wght-normal.woff2") format("woff2"); font-weight: 100 900; font-display: block; }
+
+html:has(body.mini-mode), body.mini-mode, body.mini-mode #root { background: transparent !important; overflow: hidden; }
+body.mini-mode .backdrop, body.mini-mode .grain { display: none; }
+
+.cr {
+  --plastic: #1a1a1c; --edge: rgba(255,255,255,.07);
+  /* the shell (black plastic by default) — the settings swap these for another colour (.shell-*) */
+  --body: linear-gradient(180deg, #252528 0%, #1b1b1d 38%, #141416 100%);
+  --grille: linear-gradient(180deg, #202023, #18181a); --hole: #050506;
+  --well: linear-gradient(180deg, #0c0c0d, #141416);
+  --key: linear-gradient(180deg, #2e2e31 0%, #222224 55%, #18181a 100%); --key-base: #0a0a0b;
+  --dot: radial-gradient(circle at 40% 30%, #3a3a3e, #121214 70%);
+  --logo: linear-gradient(180deg, #fff 0%, #c9c7c2 55%, #8f8d88 100%);
+  --cr-ink: 233, 231, 225;
+  /* the display (.lcd-*) and the cassette (.tape-*) */
+  --lcd: #ffcf8f; --lcd-rgb: 255, 207, 143; --lcd-glow: 255, 180, 90; --lcd-hi: #ffe2b8;
+  --tape: linear-gradient(180deg, #3a393d, #2b2a2e 60%, #242327);
+  position: fixed; inset: 0; border-radius: 30px; overflow: hidden; user-select: none;
+  display: flex; flex-direction: column; gap: 12px; padding: 16px 14px 14px;
+  background:
+    radial-gradient(120% 60% at 30% 0%, rgba(255,255,255,.06), transparent 60%),
+    var(--body);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), inset 0 0 0 1px var(--edge), inset 0 -3px 0 rgba(0,0,0,.5);
+  color: rgb(var(--cr-ink)); font: 500 12px/1.2 "Inter Tight", system-ui, sans-serif;
+}
+/* fine plastic texture */
+.cr::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+
+/* ---------- top: speaker grille, badge, round buttons, LEDs ---------- */
+.cr-top { position: relative; height: 158px; flex: none; }
+.cr-grille {
+  position: absolute; left: 0; right: 0; top: 0; height: 102px; border-radius: 16px;
+  background:
+    radial-gradient(circle at 50% 50%, var(--hole) 0 1.7px, transparent 2.2px) 3px 3px / 9px 9px,
+    var(--grille);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.6), inset 0 0 0 1px rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.06);
+}
+/* slide volume: a slot cut into the bottom of the grille, a ridged metal knob riding in it */
+.cr-volume { position: absolute; left: 14px; right: 14px; top: 76px; height: 20px; padding: 0 10px; cursor: ew-resize; touch-action: none; z-index: 2; }
+.cr-volume-slot { position: absolute; left: 10px; right: 10px; top: 7px; height: 6px; border-radius: 3px; overflow: hidden;
+  background: #070708; box-shadow: inset 0 1px 2px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.07); }
+.cr-volume-slot i { display: block; height: 100%; background: linear-gradient(90deg, rgba(var(--lcd-rgb),.25), rgba(var(--lcd-rgb),.65)); box-shadow: 0 0 6px rgba(var(--lcd-glow),.45); }
+.cr-volume b { position: absolute; top: 1px; width: 22px; height: 18px; transform: translateX(-50%); pointer-events: none; border-radius: 5px;
+  background: repeating-linear-gradient(90deg, rgba(0,0,0,.28) 0 1px, transparent 1px 3px), linear-gradient(180deg, #d9d7d2, #8e8c87);
+  box-shadow: 0 2px 4px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.7), 0 0 0 1px rgba(0,0,0,.55); transition: transform 90ms; }
+.cr-volume b { left: calc(10px + (100% - 20px) * var(--p, 0)); }
+.cr-volume.dragging b, .cr-volume:hover b { transform: translateX(-50%) scale(1.06); }
+.cr.is-playing .cr-grille { animation: cr-thump .48s ease-in-out infinite alternate; }
+@keyframes cr-thump { from { filter: brightness(1); } to { filter: brightness(1.08); } }
+.cr-badge { position: absolute; left: 6px; top: 114px; display: flex; flex-direction: column; gap: 3px; }
+.cr-logo { font: 700 italic 17px/1 "Mona Sans", sans-serif; font-stretch: 112%; letter-spacing: -.02em; color: #f2f0eb;
+  background: var(--logo); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.cr-model { font: 600 8.5px/1 "Inter Tight", sans-serif; letter-spacing: .22em; text-transform: uppercase; color: rgba(var(--cr-ink),.38); }
+.cr-round { position: absolute; right: 10px; top: 116px; display: flex; gap: 10px; }
+.cr-dot {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: rgba(var(--cr-ink),.75);
+  background: var(--dot);
+  box-shadow: 0 2px 3px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.18), 0 0 0 1px rgba(0,0,0,.6);
+  transition: transform 90ms, box-shadow 90ms, color 160ms;
+}
+.cr-dot svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.cr-dot:hover { color: rgb(var(--cr-ink)); }
+.cr-dot:active { transform: translateY(1px); box-shadow: 0 1px 1px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(0,0,0,.6); }
+.cr-close { position: absolute; right: 6px; top: 6px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; opacity: 0;
+  background: rgba(0,0,0,.55); color: rgba(255,255,255,.8); transition: opacity 160ms; z-index: 3; }
+.cr-close svg { width: 9px; height: 9px; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+.cr:hover .cr-close { opacity: 1; }
+.cr-leds { position: absolute; left: 50%; top: 122px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px;
+  font: 600 7.5px/1 "Inter Tight", sans-serif; letter-spacing: .2em; color: rgba(var(--cr-ink),.32); }
+.cr-leds span { margin-right: 6px; }
+.led { width: 6px; height: 6px; border-radius: 50%; background: #1d3a22; box-shadow: inset 0 1px 1px rgba(0,0,0,.6); }
+.led.on { background: #5dff7a; box-shadow: 0 0 6px 1px rgba(93,255,122,.75), inset 0 -1px 1px rgba(0,0,0,.25); }
+.led.red { background: #3a1a17; }
+.led.red.on { background: #ff5a3c; box-shadow: 0 0 6px 1px rgba(255,90,60,.75); }
+
+/* ---------- the strip over the door ---------- */
+.cr-lcd {
+  position: relative; flex: none; height: 64px; padding: 7px 12px 14px; border-radius: 9px; display: flex; flex-direction: column; justify-content: center; gap: 5px;
+  background: linear-gradient(180deg, #0b0a08, #14110d); box-shadow: inset 0 2px 5px rgba(0,0,0,.8), 0 1px 0 rgba(255,255,255,.07);
+  font: 500 11px/1.1 "Geist Mono", ui-monospace, monospace; color: var(--lcd); text-shadow: 0 0 6px rgba(var(--lcd-glow),.45);
+}
+.cr-lcd-row { display: flex; align-items: center; gap: 10px; }
+.cr-time { flex: none; font-variant-numeric: tabular-nums; opacity: .85; }
+.cr-lcd-sub { font-size: 10px; opacity: .55; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cr-marquee { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; -webkit-mask: linear-gradient(90deg, #000 88%, transparent); mask: linear-gradient(90deg, #000 88%, transparent); }
+.cr-marquee span { display: inline-block; }
+.cr-marquee span.run { animation: cr-scroll linear infinite alternate; }
+@keyframes cr-scroll { 0%, 15% { transform: translateX(0); } 85%, 100% { transform: translateX(var(--run)); } }
+/* the strip is 5px, the grab area around it is 17px */
+.cr-vol { flex: 1; position: relative; height: 17px; cursor: ew-resize; touch-action: none; }
+.cr-vol::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 5px; border-radius: 3px; background: rgba(var(--lcd-rgb),.15); transition: top 120ms, height 120ms; }
+.cr-vol i { position: absolute; left: 0; top: 6px; height: 5px; border-radius: 3px; background: var(--lcd); box-shadow: 0 0 6px rgba(var(--lcd-glow),.6); transition: top 120ms, height 120ms; }
+.cr-vol:hover::before, .cr-vol.dragging::before, .cr-vol:hover i, .cr-vol.dragging i { top: 5px; height: 7px; }
+
+/* ---------- cassette door ---------- */
+.cr-door { position: relative; flex: 1; min-height: 0; border-radius: 14px; overflow: hidden; display: grid; place-items: center;
+  background: linear-gradient(180deg, #0d0d0f, #161618); box-shadow: inset 0 3px 8px rgba(0,0,0,.85), inset 0 0 0 1px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.07); }
+.cr-glass { position: absolute; inset: 0; pointer-events: none; border-radius: 14px;
+  background: linear-gradient(115deg, rgba(255,255,255,.10) 0%, rgba(255,255,255,.02) 32%, transparent 33%, transparent 62%, rgba(255,255,255,.04) 63%, transparent 80%),
+              linear-gradient(180deg, rgba(40,30,22,.18), rgba(0,0,0,.25)); }
+.cr-empty { color: rgba(var(--cr-ink),.45); font: 600 11px/1 "Inter Tight", sans-serif; letter-spacing: .18em; text-transform: uppercase; padding: 12px 16px; border-radius: 8px; border: 1px dashed rgba(var(--cr-ink),.2); }
+.cr-empty:hover { color: #fff; border-color: rgba(var(--cr-ink),.45); }
+
+.cr-tape {
+  position: relative; width: 236px; height: 148px; border-radius: 9px; padding: 8px 10px;
+  background: var(--tape); box-shadow: 0 6px 14px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.14), inset 0 0 0 1px rgba(0,0,0,.4);
+}
+.cr-tape::before, .cr-tape::after { content: ""; position: absolute; width: 6px; height: 6px; border-radius: 50%; top: 6px; background: radial-gradient(circle at 40% 35%, #8b8a86, #3a3936); box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
+.cr-tape::before { left: 6px; } .cr-tape::after { right: 6px; }
+.cr-label { position: relative; height: 100%; border-radius: 5px; overflow: hidden; display: flex; flex-direction: column;
+  background: linear-gradient(180deg, #f1ede4, #e3ddd0); box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); color: #1d1c1a; }
+.cr-label img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.05); }
+.cr-label::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.0) 0%, rgba(0,0,0,.05) 50%, rgba(0,0,0,.28) 100%); pointer-events: none; }
+.cr-label-text { position: relative; z-index: 1; margin: 6px 8px 0; padding: 4px 7px 5px; align-self: flex-start; max-width: calc(100% - 46px);
+  border-radius: 3px; background: rgba(245,242,235,.92); box-shadow: 0 1px 2px rgba(0,0,0,.2); display: flex; flex-direction: column; gap: 1px; }
+.cr-label-text b { font: 700 10.5px/1.15 "Mona Sans", sans-serif; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cr-label-text span { font: 500 8.5px/1.1 "Inter Tight", sans-serif; color: rgba(29,28,26,.65); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cr-side { position: absolute; right: 8px; top: 6px; z-index: 1; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  font: 800 12px/1 "Mona Sans", sans-serif; color: #1d1c1a; background: rgba(245,242,235,.92); box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+/* the window in the label: two reels, the ribbon between them */
+.cr-window { position: absolute; left: 50%; bottom: 13px; width: 150px; height: 50px; transform: translateX(-50%); z-index: 2; border-radius: 25px;
+  background: linear-gradient(180deg, #2a2420, #15110e); box-shadow: inset 0 2px 5px rgba(0,0,0,.8), 0 0 0 2px rgba(245,242,235,.9), 0 1px 3px 2px rgba(0,0,0,.2); }
+.cr-reel { position: absolute; top: 50%; width: 44px; height: 44px; margin-top: -22px; border-radius: 50%;
+  animation-name: cr-spin; animation-timing-function: linear; animation-iteration-count: infinite;
+  /* the pack of tape around the hub */
+  background: radial-gradient(circle, transparent 0 9.5px, #5a4030 10px, #3a2a1f calc(10px + 11px * var(--pack)), rgba(255,220,180,.25) calc(10.2px + 11px * var(--pack)), transparent calc(11px + 11px * var(--pack))); }
+.cr-reel.is-left { left: 6px; } .cr-reel.is-right { right: 6px; }
+.cr-reel::before { content: ""; position: absolute; left: 50%; top: 50%; width: 20px; height: 20px; margin: -10px; border-radius: 50%;
+  background: radial-gradient(circle, #111 0 3px, #e9e5dc 3.5px 9px, transparent 9.5px); }
+.cr-reel i { position: absolute; left: 50%; top: 50%; width: 2.5px; height: 5px; margin: -11px 0 0 -1.25px; background: #e9e5dc; border-radius: 1px; transform-origin: 1.25px 11px; }
+.cr-reel i:nth-child(2) { transform: rotate(60deg); } .cr-reel i:nth-child(3) { transform: rotate(120deg); } .cr-reel i:nth-child(4) { transform: rotate(180deg); }
+.cr-reel i:nth-child(5) { transform: rotate(240deg); } .cr-reel i:nth-child(6) { transform: rotate(300deg); }
+@keyframes cr-spin { to { rotate: -360deg; } }
+.cr-ribbon { position: absolute; left: 36px; right: 36px; bottom: 6px; height: 3px; background: #2a1d15; border-radius: 2px; opacity: .9; }
+
+/* ---------- piano keys ---------- */
+.cr-keys { flex: none; display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; padding: 6px 4px 2px; border-radius: 12px;
+  background: var(--well); box-shadow: inset 0 3px 6px rgba(0,0,0,.8); }
+.cr-key {
+  position: relative; height: 54px; border-radius: 6px 6px 9px 9px; display: grid; place-items: center; color: rgba(var(--cr-ink),.72);
+  background: var(--key);
+  box-shadow: 0 5px 0 var(--key-base), 0 6px 8px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.14), inset 0 0 0 1px rgba(0,0,0,.5);
+  transform: translateY(-4px); transition: transform 70ms ease-out, box-shadow 70ms ease-out, color 160ms;
+}
+.cr-key svg { width: 15px; height: 15px; fill: currentColor; }
+.cr-key:hover { color: rgb(var(--cr-ink)); }
+.cr-key.down { transform: translateY(1px); box-shadow: 0 0 0 var(--key-base), 0 1px 2px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 0 1px rgba(0,0,0,.5); }
+.cr-key.latched { color: rgb(var(--cr-ink)); }
+.cr-key.latched::after { content: ""; position: absolute; left: 30%; right: 30%; bottom: 6px; height: 2px; border-radius: 1px; background: #5dff7a; box-shadow: 0 0 6px rgba(93,255,122,.8); }
+
+/* ---------- eject → tape picker ---------- */
+.cr-picker { position: absolute; left: 10px; right: 10px; top: 10px; bottom: 86px; z-index: 5; border-radius: 18px; display: flex; flex-direction: column; overflow: hidden;
+  background: #0f0f11; box-shadow: 0 10px 30px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.08); animation: cr-pop 180ms cubic-bezier(.22,1,.36,1) both; }
+@keyframes cr-pop { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+.cr-search { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 10px 10px 14px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.cr-search svg { width: 14px; height: 14px; fill: none; stroke: rgba(var(--cr-ink),.5); stroke-width: 1.5; stroke-linecap: round; flex: none; }
+.cr-search input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: #f3f1ec; font: 500 13px/1 "Inter Tight", sans-serif; }
+.cr-search input::placeholder { color: rgba(var(--cr-ink),.35); }
+.cr-search button { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: rgba(var(--cr-ink),.6); }
+.cr-search button:hover { background: rgba(255,255,255,.08); color: #fff; }
+.cr-search button svg { width: 9px; height: 9px; stroke: currentColor; stroke-width: 1.4; }
+.cr-results { flex: 1; overflow-y: auto; padding: 6px; scrollbar-width: thin; }
+.cr-result { width: 100%; display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 10px; text-align: left; color: #f3f1ec; }
+.cr-result.on { background: rgba(255,255,255,.08); }
+.cr-result img { width: 38px; height: 38px; border-radius: 4px; object-fit: cover; flex: none; box-shadow: 0 0 0 1px rgba(255,255,255,.08); }
+.cr-result .t { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cr-result b { font: 600 12.5px/1.2 "Inter Tight", sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cr-result .t span { font: 500 11px/1.2 "Inter Tight", sans-serif; color: rgba(var(--cr-ink),.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cr-none { padding: 24px 12px; text-align: center; color: rgba(var(--cr-ink),.4); font-size: 12px; }
+
+/* tape position on the strip: an amber line with a head; the hit area is taller than the line */
+.cr-seek { position: absolute; left: 10px; right: 10px; bottom: 2px; height: 12px; cursor: pointer; touch-action: none; }
+.cr-seek.off { pointer-events: none; opacity: .35; }
+.cr-seek-line { position: absolute; left: 0; right: 0; top: 5px; height: 2px; border-radius: 1px; background: rgba(var(--lcd-rgb),.16); overflow: hidden; }
+.cr-seek-line i { display: block; height: 100%; background: var(--lcd); box-shadow: 0 0 5px rgba(var(--lcd-glow),.7); }
+.cr-seek b { position: absolute; top: 2.5px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--lcd); box-shadow: 0 0 6px rgba(var(--lcd-glow),.8); opacity: 0; transition: opacity 140ms; }
+.cr-seek:hover b, .cr-seek.dragging b { opacity: 1; }
+.cr-seek:hover .cr-seek-line, .cr-seek.dragging .cr-seek-line { height: 3px; top: 4.5px; }
+
+/* the sung line: plain type, full brightness — one piece at a time, lifted in when it changes */
+.cr-lyric { height: 17px; overflow: hidden; white-space: nowrap; font: 500 13px/17px "Inter Tight", system-ui, sans-serif; letter-spacing: -.005em;
+  color: var(--lcd-hi); text-shadow: 0 0 5px rgba(var(--lcd-glow),.35); }
+.cr-lyric span { display: block; animation: cr-lift 220ms cubic-bezier(.22,1,.36,1) both; }
+.cr-lyric.dim { color: rgba(var(--lcd-rgb),.55); text-shadow: none; }
+.cr-lyric.dim span { animation: none; }
+@keyframes cr-lift { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+/* the smoked door and the tape picker stay dark whatever the shell: light ink inside them */
+.cr-door, .cr-picker { --cr-ink: 233, 231, 225; }
+
+/* ---------- shells ---------- */
+.cr.shell-silver { --body: linear-gradient(180deg, #dadad7 0%, #c6c6c2 38%, #afafab 100%); --grille: linear-gradient(180deg, #bfbfbb, #adadaa); --hole: #3c3c3c;
+  --well: linear-gradient(180deg, #8e8e8a, #a3a39f); --key: linear-gradient(180deg, #eeeeec 0%, #d8d8d5 55%, #c0c0bd 100%); --key-base: #7b7b78;
+  --dot: radial-gradient(circle at 40% 30%, #f6f6f4, #a8a8a5 70%); --logo: linear-gradient(180deg, #4a4a4a, #111); --cr-ink: 32, 32, 34; --edge: rgba(0,0,0,.08); }
+.cr.shell-white { --body: linear-gradient(180deg, #f5f3ef 0%, #eae7e1 38%, #dad6cf 100%); --grille: linear-gradient(180deg, #e2dfd9, #d4d0c9); --hole: #6d6a64;
+  --well: linear-gradient(180deg, #b8b4ad, #c9c5be); --key: linear-gradient(180deg, #fcfbf8 0%, #f0ede7 55%, #dedad2 100%); --key-base: #a29d95;
+  --dot: radial-gradient(circle at 40% 30%, #ffffff, #cfcac2 70%); --logo: linear-gradient(180deg, #55524c, #1d1c1a); --cr-ink: 36, 34, 32; --edge: rgba(0,0,0,.07); }
+.cr.shell-red { --body: linear-gradient(180deg, #b5272e 0%, #991e24 38%, #7c161b 100%); --grille: linear-gradient(180deg, #8d1d22, #7a171c); --hole: #2a0608;
+  --well: linear-gradient(180deg, #3a0a0d, #4d0e12); --key: linear-gradient(180deg, #c6323a 0%, #a8262d 55%, #8b1d23 100%); --key-base: #4a0c0f;
+  --dot: radial-gradient(circle at 40% 30%, #d6474e, #7c161b 70%); --cr-ink: 255, 236, 232; }
+.cr.shell-navy { --body: linear-gradient(180deg, #2c3b5d 0%, #22304d 38%, #1a253d 100%); --grille: linear-gradient(180deg, #202c47, #19233a); --hole: #070b14;
+  --well: linear-gradient(180deg, #0a0f1b, #111829); --key: linear-gradient(180deg, #35456b 0%, #2a3858 55%, #212c47 100%); --key-base: #0b1020;
+  --dot: radial-gradient(circle at 40% 30%, #405179, #141c30 70%); --cr-ink: 226, 232, 245; }
+.cr.shell-olive { --body: linear-gradient(180deg, #616849 0%, #52593d 38%, #434931 100%); --grille: linear-gradient(180deg, #4b5137, #3f452e); --hole: #15170e;
+  --well: linear-gradient(180deg, #1b1e12, #252819); --key: linear-gradient(180deg, #6c7453 0%, #5c6346 55%, #4b5139 100%); --key-base: #1a1d10;
+  --dot: radial-gradient(circle at 40% 30%, #7a825b, #363b26 70%); --cr-ink: 238, 240, 226; }
+.cr.shell-pink { --body: linear-gradient(180deg, #f2bcc7 0%, #e7a8b6 38%, #d793a3 100%); --grille: linear-gradient(180deg, #dd9dac, #d090a0); --hole: #5a2a35;
+  --well: linear-gradient(180deg, #9a5c6a, #b06e7d); --key: linear-gradient(180deg, #f9ccd5 0%, #efb7c3 55%, #e1a2b0 100%); --key-base: #a8606f;
+  --dot: radial-gradient(circle at 40% 30%, #fde2e8, #d793a3 70%); --logo: linear-gradient(180deg, #7a3a48, #3a121b); --cr-ink: 74, 26, 37; --edge: rgba(0,0,0,.06); }
+
+/* ---------- displays ---------- */
+.cr.lcd-green { --lcd: #8dffa0; --lcd-rgb: 141, 255, 160; --lcd-glow: 60, 255, 110; --lcd-hi: #c8ffd2; }
+.cr.lcd-ice { --lcd: #9fd8ff; --lcd-rgb: 159, 216, 255; --lcd-glow: 90, 170, 255; --lcd-hi: #d4eeff; }
+.cr.lcd-red { --lcd: #ff8a7a; --lcd-rgb: 255, 138, 122; --lcd-glow: 255, 70, 50; --lcd-hi: #ffc6bd; }
+.cr.lcd-violet { --lcd: #d0a8ff; --lcd-rgb: 208, 168, 255; --lcd-glow: 160, 100, 255; --lcd-hi: #e9d8ff; }
+.cr.lcd-white { --lcd: #f2f2ee; --lcd-rgb: 242, 242, 238; --lcd-glow: 210, 220, 255; --lcd-hi: #ffffff; }
+
+/* ---------- cassettes ---------- */
+.cr.tape-clear { --tape: linear-gradient(180deg, rgba(214,224,236,.42), rgba(170,182,198,.3) 60%, rgba(140,152,168,.34)); }
+.cr.tape-white { --tape: linear-gradient(180deg, #f2f0ea, #e3e0d8 60%, #d4d0c6); }
+.cr.tape-red { --tape: linear-gradient(180deg, #ca333b, #a9272e 60%, #8c1e24); }
+.cr.tape-blue { --tape: linear-gradient(180deg, #3b70d1, #2d59ae 60%, #23478d); }
+.cr.tape-yellow { --tape: linear-gradient(180deg, #f3c94c, #deb236 60%, #c89d27); }

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Import — design reference</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+/* =====================================================================
+   IMPORT LAYOUT — reference 1920 × 1080
+   Content block 1200 px wide, centred (x 360–1560).
+   Left: cover 360 × 360. Gap 64. Right: 776 px — fields, then tracks.
+   ===================================================================== */
+.screen { position: relative; z-index: 1; width: 100vw; height: 100vh; }
+.wrap { position: absolute; left: 50%; top: 132px; width: 1200px; margin-left: -600px; display: grid; grid-template-columns: 360px 1fr; gap: 64px; }
+.h1 { font: var(--t-display); font-stretch: var(--st-display); letter-spacing: var(--tr-display); color: var(--ink); grid-column: 1 / -1; margin-bottom: 8px; }
+.h1 small { font: var(--t-body-lg); color: var(--ink-3); letter-spacing: 0; margin-left: 16px; font-stretch: 100%; }
+
+.cover { width: 360px; height: 360px; border-radius: var(--r-lg); overflow: hidden; position: relative; box-shadow: var(--shadow-card); }
+.cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cover .replace { position: absolute; left: 12px; bottom: 12px; }
+.cover-note { margin-top: 14px; font: var(--t-small); color: var(--ink-3); display: flex; gap: 8px; align-items: center; }
+.side-actions { margin-top: 28px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+
+.fields { display: grid; grid-template-columns: 1fr 1fr 140px; gap: 32px; }
+.field label { display: block; margin-bottom: 10px; }
+.field .in {
+  font: 500 20px/1.2 var(--font); letter-spacing: -0.01em; color: var(--ink);
+  padding-bottom: 10px; border-bottom: 1px solid var(--ink-5); transition: border-color var(--d-fast);
+}
+.field.focus .in { border-color: var(--ink-3); }
+.field .ph { color: var(--ink-4); }
+
+.list-head { margin-top: 48px; display: flex; justify-content: space-between; align-items: center; padding: 0 0 12px; border-bottom: 1px solid var(--ink-5); }
+.list-head .right { display: flex; gap: 8px; }
+.rows { margin: 8px 0 0 -12px; max-height: 470px; overflow: hidden;
+  -webkit-mask: linear-gradient(180deg, #000 88%, transparent); mask: linear-gradient(180deg, #000 88%, transparent); }
+.row {
+  height: 48px; display: grid; grid-template-columns: 24px 32px 1fr auto 36px; align-items: center; gap: 12px;
+  padding: 0 12px; border-radius: var(--r-md); transition: background var(--d-fast);
+}
+.row:hover { background: var(--ink-6); }
+.row .drag { color: var(--ink-4); cursor: grab; }
+.row .mono { color: var(--ink-4); }
+.row .t { font: var(--t-body-lg); color: var(--ink); padding: 6px 0; border-bottom: 1px solid transparent; }
+.row:hover .t { border-bottom-color: var(--ink-5); }
+.row.edit .t { border-bottom-color: var(--ink-3); }
+.row.edit .t::after { content: ""; display: inline-block; width: 1px; height: 18px; background: var(--ink); vertical-align: -3px; margin-left: 1px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0 } }
+.row .x { opacity: 0; } .row:hover .x { opacity: 1; }
+.row .src { font: var(--t-small); color: var(--ink-4); margin-left: 12px; }
+.drop {
+  margin: 10px 0 0; height: 56px; border-radius: var(--r-md); border: 1px dashed var(--ink-4);
+  display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--ink-3); font: var(--t-body);
+}
+.header .right { display: flex; gap: 8px; align-items: center; }
+.status { font: var(--t-small); color: var(--ink-3); margin-right: 8px; }
+</style>
+</head>
+<body>
+<div class="backdrop">
+  <img class="blur" src="cover.jpg" alt="">
+  <div class="tone" style="background: rgba(10,10,14,.62)"></div>
+  <div class="vignette"></div>
+</div>
+
+<div class="screen">
+  <header class="header">
+    <button class="pill-btn"><span data-icon="x" data-size="14"></span>Cancel</button>
+    <div class="right"><span class="status">12 tracks · 29:52 · ready</span><button class="pill-btn solid"><span data-icon="check" data-size="14"></span>Save album</button></div>
+  </header>
+
+  <div class="wrap">
+    <h1 class="h1">New album <small>12 files dropped</small></h1>
+
+    <aside>
+      <div class="cover"><img src="cover.jpg" alt=""><button class="pill-btn replace"><span data-icon="image" data-size="14"></span>Replace</button></div>
+      <div class="cover-note"><span data-icon="check" data-size="14"></span>Applied to all 12 tracks</div>
+      <div class="side-actions">
+        <button class="pill-btn"><span data-icon="clipboard-text" data-size="14"></span>Paste track titles</button>
+        <button class="pill-btn"><span data-icon="plus" data-size="14"></span>Add more files</button>
+      </div>
+    </aside>
+
+    <main>
+      <div class="fields">
+        <div class="field focus"><label class="micro">Album title</label><div class="in">Half Blood</div></div>
+        <div class="field"><label class="micro">Artist</label><div class="in">slayr</div></div>
+        <div class="field"><label class="micro">Year</label><div class="in">2025</div></div>
+      </div>
+
+      <div class="list-head"><span class="micro">Tracks</span><div class="right"><span class="micro" style="color:var(--ink-4)">Drag to reorder · click a title to rename</span></div></div>
+      <div class="rows" id="rows"></div>
+      <div class="drop"><span data-icon="upload-simple"></span>Drop more audio files here, or <u>browse</u></div>
+    </main>
+  </div>
+</div>
+<div class="grain"></div>
+
+<script src="icons.js"></script>
+<script>
+const T = [["Love Blur","2:46","01_love_blur_master.mp3"],["Demigod","2:47","demigod FINAL.wav"],["Sloppy Joe","2:26","sloppy joe v3.mp3"],["Never Going Down","2:00","never going down.mp3"],
+  ["Wipe Yo Nose","3:08","wipe yo nose.mp3"],["24/7","2:06","24-7.mp3"],["Phone Interlude","2:08","phone interlude.mp3"],["Power 4","1:40","power4.mp3"],["Death by MP3","2:35","death by mp3.mp3"]];
+document.getElementById("rows").innerHTML = T.map((t, i) => `<div class="row ${i === 2 ? "edit" : ""}">
+  <span class="drag" data-icon="dots-six-vertical" data-size="16"></span>
+  <span class="mono">${String(i + 1).padStart(2, "0")}</span>
+  <span><span class="t">${t[0]}</span><span class="src">${t[2]}</span></span>
+  <span class="mono">${t[1]}</span>
+  <button class="icon-btn x" style="width:28px;height:28px"><span data-icon="x" data-size="14"></span></button></div>`).join("");
+</script>
+</body>
+</html>

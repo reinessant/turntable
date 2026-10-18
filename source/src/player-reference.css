@@ -1,0 +1,141 @@
+/* =====================================================================
+   PLAYER LAYOUT — reference 1920 × 1080
+   ┌ header ............................................ y 44–76     ┐
+   │ track carousel (discs) ............................ y 112–236    │
+   │ left column │ cover card + deck (centred) │ lyrics  y 280–940    │
+   └ transport capsule ................................. y 980–1040   ┘
+   ===================================================================== */
+.screen { position: relative; z-index: 1; width: 100vw; height: 100vh; }
+
+/* ---------- Track carousel: records orbiting a vertical axis ----------
+   The tracks are small records standing on a ring around an invisible pole.
+   The wheel turns the ring. Front record = current track (largest, sharp,
+   spinning when playing); records at the sides turn edge-on and recede;
+   records behind the pole fade out.                                     */
+.carousel {
+  position: absolute; left: 50%; top: 76px; width: 900px; height: 170px; margin-left: -450px;
+  /* no CSS mask here: masking a preserve-3d subtree flattens it and clips the shadows. Fade is per-record opacity. */
+}
+.ring { position: absolute; left: 50%; top: 70px; width: 0; height: 0; }
+/* front half of the orbit only */
+.orbit { /* faint ellipse = the path of the ring on the "floor". Sells "rotating around an axis". Plain 2D SVG. */
+  position: absolute; left: 50%; top: 96px; width: 640px; height: 56px; margin-left: -320px; overflow: visible;
+}
+.cdisc {
+  position: absolute; left: -50px; top: -50px; width: 100px; height: 100px; border-radius: 50%;
+  cursor: pointer;
+}
+.cdisc .dim { position: absolute; inset: 0; border-radius: 50%; background: #0b0b0d; pointer-events: none; } /* darkens side records; no CSS filter (filters on 3D elements rasterise and clip) */
+.cdisc .spinme { position: absolute; inset: 0; border-radius: 50%; }
+.cdisc .v {
+  position: absolute; inset: 0; border-radius: 50%;
+  background:
+    radial-gradient(circle, transparent 40%, rgba(255,255,255,.05) 41%, transparent 43%, transparent 60%, rgba(255,255,255,.05) 61%, transparent 63%, transparent 80%, rgba(255,255,255,.05) 81%, transparent 83%),
+    radial-gradient(circle at 50% 50%, #1b1b1e, #111113);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.cdisc .shadow { /* soft shadow as its own element, so it is never clipped */
+  position: absolute; left: -18%; right: -18%; top: -8%; bottom: -30%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(0,0,0,.45), transparent); transform: translateY(10%);
+}
+.cdisc .sh { /* fixed sheen: does not spin */
+  position: absolute; inset: 0; border-radius: 50%; mix-blend-mode: screen; pointer-events: none;
+  background: conic-gradient(from -62deg, transparent, rgba(255,255,255,.2) 14deg, transparent 36deg, transparent 180deg, rgba(255,255,255,.11) 194deg, transparent 216deg);
+  -webkit-mask: radial-gradient(circle, transparent 33%, #000 35%); mask: radial-gradient(circle, transparent 33%, #000 35%);
+}
+.cdisc .l { position: absolute; inset: 32%; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+.cdisc .l img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cdisc .l::after { content: ""; position: absolute; left: 50%; top: 50%; width: 3px; height: 3px; margin: -1.5px; border-radius: 50%; background: #111; }
+.cdisc .ringfocus { position: absolute; inset: -6px; border-radius: 50%; border: 1px solid var(--ink-4); opacity: 0; transition: opacity 300ms; }
+.cdisc.active .ringfocus { opacity: 1; }
+.playing .cdisc.active .spinme { animation: spin 1.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.carousel-caption {
+  position: absolute; left: 0; right: 0; top: 214px; text-align: center; font: var(--t-body); color: var(--ink-2);
+  transition: opacity 200ms var(--ease-out);
+}
+.carousel-caption .mono { color: var(--ink-4); margin-right: 10px; }
+
+/* ---------- Left column: album + tracklist ---------- */
+/* The album title's top aligns with the plinth's top edge (y ≈ 379). */
+.left { position: absolute; left: var(--page-x); top: 330px; width: 336px; }   /* top = plinth top */
+.album-cover { width: 120px; height: 120px; border-radius: 3px; overflow: hidden; margin-bottom: 24px; box-shadow: var(--shadow-card); position: relative; }
+.album-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.album-cover::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 0 0 1px rgba(0,0,0,.12); }
+.album-title { font: var(--t-display); font-stretch: var(--st-display); letter-spacing: var(--tr-display); color: var(--ink); }
+.album-artist { margin-top: 10px; font: var(--t-body-lg); color: var(--ink-2); }
+.album-meta { margin-top: 12px; display: flex; gap: 14px; }
+.album-meta .mono { color: var(--ink-3); }
+.tracks { /* ends 40 px above the capsule; long albums scroll, the current row is kept in view */
+  margin-top: 28px; margin-left: -12px; max-height: 344px; position: relative; overflow-y: auto; scrollbar-width: none; scroll-behavior: smooth;
+  -webkit-mask: linear-gradient(180deg, transparent 0, #000 6%, #000 86%, transparent); mask: linear-gradient(180deg, transparent 0, #000 6%, #000 86%, transparent); padding-top: 8px; }
+.tracks::-webkit-scrollbar { display: none; }
+.trk .t .x { color: var(--ink-4); font-weight: 400; margin-left: 6px; }   /* "prod …" / "ft …" credit, muted */
+.trk {
+  height: 36px; display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px;
+  padding: 0 12px; border-radius: 8px; color: var(--ink-2); cursor: pointer;
+  transition: background var(--d-fast) var(--ease-out), color var(--d-fast);
+}
+.trk:hover { background: var(--ink-6); color: var(--ink); }
+.trk .mono { color: var(--ink-4); }
+.trk .t { font: var(--t-body); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.trk.on { color: var(--ink); background: var(--ink-6); }
+.trk.on .t { font-weight: 550; }
+.trk .dot { width: 10px; height: 10px; border-radius: 50%; margin-left: 2px; background:
+  radial-gradient(circle, var(--ink) 18%, transparent 22%), radial-gradient(circle, #111 60%, transparent 62%);
+  box-shadow: 0 0 0 1px var(--ink-3); }
+
+/* ---------- Stage: cover card + deck ---------- */
+/* Stage is centred so the deck's centre sits at y 565 (screen centre 540 + a little for the ring above). */
+.stage { position: absolute; left: 0; right: 0; top: 232px; height: 626px; perspective: 2400px; }   /* deck centre y 545 */
+.group {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 40px;
+}
+.tilt { transform: rotateX(var(--tx, 5deg)) rotateY(var(--ty, 0deg)); transition: transform 900ms var(--ease-out); }
+.card {
+  width: 196px; height: 196px; border-radius: 3px; overflow: hidden; flex: none;
+  box-shadow: var(--shadow-card);   /* straight, not tilted: strict */
+  position: relative;
+}
+.card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.card::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 0 0 1px rgba(0,0,0,.12);
+  background: linear-gradient(135deg, rgba(255,255,255,.14), transparent 40%); }
+
+/* ---------- Lyrics ---------- */
+.lyrics { /* the ACTIVE line is centred on the deck's centre (y 565) */
+  position: absolute; right: var(--page-x); top: 345px; width: 400px; height: 400px; overflow: hidden;
+  -webkit-mask: linear-gradient(180deg, transparent 0, #000 22%, #000 74%, transparent 100%);
+          mask: linear-gradient(180deg, transparent 0, #000 22%, #000 74%, transparent 100%);
+}
+.lyrics .inner { position: absolute; left: 0; right: 0; top: 0; transition: transform 700ms var(--ease-out); }
+.ly {
+  font: var(--t-lyric); letter-spacing: -0.01em; color: var(--ink); margin-bottom: 20px;
+  transform-origin: left center; transition: all 520ms var(--ease-out); cursor: pointer;
+}
+.ly.on { font: var(--t-lyric-on); font-stretch: var(--st-lyric); letter-spacing: var(--tr-lyric); opacity: 1; filter: none; }
+
+/* ---------- Transport capsule ---------- */
+.capsule {
+  position: absolute; left: 50%; bottom: var(--page-bottom); transform: translateX(-50%);
+  width: 720px; height: 60px; padding: 0 12px; border-radius: var(--r-pill);
+  display: flex; align-items: center; gap: 4px;
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-hi), var(--glass-shadow);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+}
+.play {
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; margin: 0 4px;
+  background: var(--ink); color: var(--inverse);
+  box-shadow: 0 1px 0 rgba(255,255,255,.4) inset, 0 4px 14px rgba(0,0,0,.3);
+  transition: transform var(--d-fast) var(--ease-out);
+}
+.play:active { transform: scale(.94); }
+.time { width: 44px; color: var(--ink-3); text-align: center; }
+.bar { flex: 1; height: 20px; display: flex; align-items: center; margin: 0 6px; cursor: pointer; }
+.bar .track { position: relative; width: 100%; height: 3px; border-radius: 3px; background: var(--ink-5); }
+.bar .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--ink); }
+.bar .thumb { position: absolute; top: 50%; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; border-radius: 50%;
+  background: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.4); opacity: 0; transition: opacity var(--d-fast); }
+.bar:hover .thumb { opacity: 1; }
+.sep { width: 1px; height: 20px; background: var(--ink-5); margin: 0 6px; }

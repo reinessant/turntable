@@ -1,0 +1,11 @@
+node_modules/
+dist/
+src-tauri/target/
+*.exe
+*.pdb
+.env.local
+.env.*.local
+installer/src-tauri/target/
+installer/src-tauri/gen/
+installer/src-tauri/payload/
+release/

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turntable Setup</title>
+<link rel="stylesheet" href="setup.css">
+</head>
+<body>
+<div class="card" id="card">
+  <div class="grain"></div>
+  <div class="glow" id="glow"></div>
+
+  <!-- the record you can grab; the arm travels across it while installing -->
+  <div class="deck">
+    <div class="platter"></div>
+    <svg class="ring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48.5" class="ring-track"/><circle cx="50" cy="50" r="48.5" class="ring-fill" id="ringFill"/></svg>
+    <div class="record" id="record">
+      <div class="vinyl"></div>
+      <div class="label">
+        <svg viewBox="0 0 100 100"><defs><path id="arc" d="M50 50 m-38 0 a38 38 0 1 1 76 0 a38 38 0 1 1 -76 0"/></defs>
+          <circle cx="50" cy="50" r="46.5" fill="none" stroke="rgba(28,26,24,.2)" stroke-width=".7"/>
+          <text class="arc"><textPath href="#arc">TURNTABLE · 33⅓ RPM · SIDE A · STEREO ·</textPath></text>
+          <text x="50" y="41" text-anchor="middle" class="mark">turntable</text></svg>
+        <i class="hole"></i>
+      </div>
+    </div>
+    <div class="sheen"></div>
+    <div class="wave" id="wave"></div>
+    <svg class="arm" id="arm" viewBox="0 0 520 560">
+      <g id="armRot">
+        <line x1="0" y1="0" x2="0" y2="250" class="tube"/>
+        <rect x="-11" y="244" width="22" height="34" rx="4" class="head"/>
+        <rect x="-4" y="274" width="8" height="8" rx="1.5" class="stylus"/>
+        <rect x="-15" y="-46" width="30" height="40" rx="7" class="weight"/>
+      </g>
+      <circle r="24" class="pivot-base"/><circle r="12" class="pivot"/>
+    </svg>
+    <div class="hint" id="hint"></div>
+  </div>
+
+  <!-- top bar -->
+  <div class="drag" data-tauri-drag-region></div>
+  <div class="win">
+    <div class="lang" id="langSwitch" role="group" aria-label="Language"><button data-l="ru" title="Русский">RU</button><button data-l="en" title="English">EN</button></div>
+    <button id="mute" title="Music"><svg viewBox="0 0 16 16" id="muteOn"><path d="M2.5 6h2.5L8.5 3v10L5 10H2.5z"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.7a6 6 0 0 1 0 8.6" fill="none"/></svg><svg viewBox="0 0 16 16" id="muteOff"><path d="M2.5 6h2.5L8.5 3v10L5 10H2.5z"/><path d="M11 6l3.5 4M14.5 6 11 10" fill="none"/></svg></button>
+    <button id="min" title="Minimize"><svg viewBox="0 0 16 16"><path d="M4 8h8"/></svg></button>
+    <button id="close" title="Close"><svg viewBox="0 0 16 16"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
+  </div>
+
+  <!-- the words -->
+  <section class="side">
+    <div class="kicker" id="kicker"></div>
+    <h1>turntable</h1>
+    <p class="tagline" id="tagline"></p>
+
+    <div class="state" id="state">
+      <div class="view idle">
+        <button class="go" id="installBtn"></button>
+        <div class="opts">
+          <label class="toggle"><input type="checkbox" id="optDesktop" checked><i></i><span id="optDesktopText"></span></label>
+          <label class="toggle"><input type="checkbox" id="optLaunch" checked><i></i><span id="optLaunchText"></span></label>
+        </div>
+        <div class="path"><span id="pathLabel"></span><code id="pathText"></code></div>
+      </div>
+      <div class="view busy">
+        <div class="pct"><b id="pct">0</b><span>%</span></div>
+        <div class="bar"><i id="bar"></i></div>
+        <div class="step" id="step"></div>
+      </div>
+      <div class="view done">
+        <div class="big" id="doneTitle"></div>
+        <p class="sub" id="doneSub"></p>
+        <div class="row"><button class="go" id="launchBtn"></button><button class="ghost" id="doneClose"></button></div>
+      </div>
+      <div class="view running">
+        <div class="big" id="runTitle"></div>
+        <p class="sub" id="runSub"></p>
+        <div class="row"><button class="go" id="closeAppBtn"></button><button class="ghost" id="runBack"></button></div>
+      </div>
+      <div class="view failed">
+        <div class="big" id="errTitle"></div>
+        <p class="sub mono" id="errText"></p>
+        <div class="row"><button class="go" id="retryBtn"></button><button class="ghost" id="classicBtn"></button></div>
+      </div>
+    </div>
+  </section>
+</div>
+<script src="music.js"></script>
+<script src="setup.js"></script>
+</body>
+</html>

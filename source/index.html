@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" class="launching albums-hold">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Turntable</title>
+    <!-- Launch splash: painted with the very first frame (before the app's JS and CSS), so the record is there
+         the moment the window shows. The window is full screen and transparent; only the record shows.
+         Intro.tsx then opens the app through it with the wave and removes it. -->
+    <link rel="stylesheet" href="/splash.css" />
+  </head>
+  <body>
+    <div id="splash" aria-hidden="true">
+      <div class="disc">
+        <div class="rotor"><div class="label">
+          <svg viewBox="0 0 100 100"><defs><path id="splash-arc" d="M50 50 m-37 0 a37 37 0 1 1 74 0 a37 37 0 1 1 -74 0" /></defs>
+            <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(28,26,24,.22)" stroke-width=".6" />
+            <circle cx="50" cy="50" r="27" fill="none" stroke="rgba(28,26,24,.16)" stroke-width=".5" />
+            <text><textPath href="#splash-arc">TURNTABLE · 33⅓ RPM · SIDE A · STEREO · </textPath></text>
+            <text x="50" y="42" text-anchor="middle" class="mark">turntable</text></svg>
+          <i></i>
+        </div></div>
+        <div class="sheen"></div>
+      </div>
+      <div class="ring"></div>
+      <div class="rim"></div>
+    </div>
+    <div id="root"></div>
+    <script src="/design/icons.js"></script>
+    <script src="/design/deck.js"></script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

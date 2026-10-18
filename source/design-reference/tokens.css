@@ -1,0 +1,190 @@
+/* =====================================================================
+   TURNTABLE — DESIGN TOKENS
+   Reference canvas: 1920 × 1080. All px values are at that size.
+   Everything in the app must come from these tokens. No ad-hoc values.
+   ===================================================================== */
+
+@font-face {
+  font-family: "Geist";
+  src: url("fonts/geist-latin-wght-normal.woff2") format("woff2");
+  font-weight: 100 900; font-display: block;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215;
+}
+@font-face {
+  font-family: "Geist";
+  src: url("fonts/geist-cyrillic-wght-normal.woff2") format("woff2");
+  font-weight: 100 900; font-display: block;
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face { /* DISPLAY face: Mona Sans (GitHub, SIL OFL). Variable weight + width. Latin only → Cyrillic falls back to Geist. */
+  font-family: "Mona Sans";
+  src: url("fonts/mona-sans-latin-standard-normal.woff2") format("woff2");
+  font-weight: 200 900; font-stretch: 75% 125%; font-display: block;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("fonts/geist-mono-latin-wght-normal.woff2") format("woff2");
+  font-weight: 100 900; font-display: block;
+}
+
+:root {
+  /* ---------- Spacing scale — the ONLY allowed spacings ---------- */
+  --s-1: 4px;   --s-2: 8px;   --s-3: 12px;  --s-4: 16px;
+  --s-5: 24px;  --s-6: 32px;  --s-7: 48px;  --s-8: 64px;
+  --s-9: 96px;  --s-10: 128px;
+
+  /* ---------- Page frame ---------- */
+  --page-x: 64px;         /* left/right margin */
+  --page-top: 44px;       /* top margin to the header baseline box */
+  --page-bottom: 40px;    /* bottom margin under the transport capsule */
+  --col-left: 320px;      /* album + tracklist column */
+  --col-right: 440px;     /* lyrics column */
+
+  /* ---------- Radii ---------- */
+  --r-sm: 6px;  --r-md: 10px;  --r-lg: 14px;  --r-pill: 999px;
+
+  /* ---------- Ink (set per album: light-on-dark or dark-on-light) ---------- */
+  --ink-rgb: 243, 241, 236;          /* dark rooms. Light rooms: 20, 20, 20 */
+  --ink:    rgba(var(--ink-rgb), .94);   /* primary      */
+  --ink-2:  rgba(var(--ink-rgb), .64);   /* secondary    */
+  --ink-3:  rgba(var(--ink-rgb), .42);   /* tertiary     */
+  --ink-4:  rgba(var(--ink-rgb), .24);   /* quaternary   */
+  --ink-5:  rgba(var(--ink-rgb), .12);   /* hairline     */
+  --ink-6:  rgba(var(--ink-rgb), .06);   /* hover fill   */
+  --inverse: #121214;                    /* text on a solid ink button */
+
+  /* ---------- Glass (transport capsule, pills) ---------- */
+  --glass-bg: rgba(255, 255, 255, .07);
+  --glass-border: rgba(255, 255, 255, .12);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, .14);
+  --glass-shadow: 0 1px 2px rgba(0,0,0,.18), 0 12px 40px rgba(0,0,0,.28);
+  --glass-blur: blur(28px) saturate(1.6);
+
+  /* ---------- Type ---------- */
+  --font: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --display: "Mona Sans", "Geist", ui-sans-serif, sans-serif;   /* titles + active lyric only */
+  --mono: "Geist Mono", ui-monospace, monospace;
+
+  /* role: size / line-height / weight / tracking */
+  /* Display styles use Mona Sans EXPANDED: always pair with font-stretch below */
+  --t-display:  700 46px/1.0  var(--display);  --tr-display: -0.045em;  --st-display: 115%;
+  --t-title:    650 30px/1.05 var(--display);  --tr-title:   -0.035em;  --st-title:   112%;
+  --t-lyric-on: 600 30px/1.2  var(--display);  --tr-lyric:   -0.03em;   --st-lyric:   106%;
+  --t-lyric:    500 22px/1.3  var(--font);
+  --t-body-lg:  450 16px/1.4  var(--font);
+  --t-body:     450 14px/1.4  var(--font);
+  --t-small:    400 13px/1.4  var(--font);
+  --t-micro:    500 11px/1    var(--font);  --tr-micro:    0.14em;
+  --t-mono:     400 12px/1    var(--mono);
+
+  /* ---------- Motion ---------- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);   /* arrivals   */
+  --ease-in:  cubic-bezier(0.64, 0, 0.78, 0);   /* departures */
+  --ease-io:  cubic-bezier(0.65, 0, 0.35, 1);   /* moves      */
+  --d-fast: 140ms; --d-base: 260ms; --d-slow: 520ms;
+
+  /* ---------- Object shadows (never a single shadow) ---------- */
+  --shadow-object:
+    0 1px 1px rgba(0,0,0,.10),
+    0 3px 6px rgba(0,0,0,.10),
+    0 14px 28px rgba(0,0,0,.16),
+    0 40px 80px rgba(0,0,0,.26),
+    0 80px 160px rgba(0,0,0,.20);
+  --shadow-card:
+    0 1px 1px rgba(0,0,0,.12),
+    0 4px 10px rgba(0,0,0,.14),
+    0 18px 40px rgba(0,0,0,.24);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font: var(--t-body); color: var(--ink);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01", "cv11";
+  overflow: hidden; background: #0e0e10;
+}
+.mono { font: var(--t-mono); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.micro { font: var(--t-micro); letter-spacing: var(--tr-micro); text-transform: uppercase; color: var(--ink-3); }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+svg { display: block; }
+
+/* =====================================================================
+   BACKDROP — blurred cover + tone + glow + grain  (same on every screen)
+   ===================================================================== */
+.backdrop { position: fixed; inset: 0; overflow: hidden; background: var(--base, #1b1a22); z-index: 0; }
+.backdrop .blur {
+  position: absolute; left: -25%; top: -25%; width: 150%; height: 150%;
+  object-fit: cover; filter: blur(120px) saturate(1.2) brightness(.85);
+  /* In the app: pre-render once to a 64px canvas and upscale instead of a live CSS blur. */
+}
+.backdrop .tone { position: absolute; inset: 0; background: rgba(10, 10, 14, .56); }
+.backdrop .vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(120% 90% at 50% 45%, transparent 40%, rgba(0,0,0,.38) 100%);
+}
+.backdrop .glow {
+  position: absolute; width: 1100px; height: 800px; border-radius: 50%;
+  left: var(--glow-x, 50%); top: var(--glow-y, 48%); transform: translate(-50%, -50%);
+  background: radial-gradient(closest-side, var(--glow, rgba(60, 90, 255, .55)), transparent);
+  filter: blur(40px); mix-blend-mode: screen; opacity: .85;
+}
+.grain {
+  position: fixed; inset: 0; pointer-events: none; z-index: 100; opacity: .07; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  0 0 0 1.6 -.3'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* =====================================================================
+   SHARED COMPONENTS
+   ===================================================================== */
+.header {
+  position: absolute; left: var(--page-x); right: var(--page-x); top: var(--page-top);
+  height: 32px; display: flex; align-items: center; justify-content: space-between; z-index: 10;
+}
+.pill-btn {
+  height: 32px; padding: 0 14px 0 10px; border-radius: var(--r-pill);
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 500 13px/1 var(--font); color: var(--ink-2);
+  background: var(--glass-bg); border: 1px solid var(--glass-border); box-shadow: var(--glass-hi);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  transition: color var(--d-fast) var(--ease-out), background var(--d-fast) var(--ease-out);
+}
+.pill-btn:hover { color: var(--ink); background: rgba(255,255,255,.11); }
+.pill-btn.solid { background: var(--ink); color: var(--inverse); border-color: transparent; padding: 0 16px; }
+.icon-btn {
+  width: 36px; height: 36px; border-radius: var(--r-pill); display: grid; place-items: center;
+  color: var(--ink-2); transition: color var(--d-fast), background var(--d-fast);
+}
+.icon-btn:hover { color: var(--ink); background: var(--ink-6); }
+
+/* =====================================================================
+   FIT — every screen is laid out on a fixed 1920×1080 artboard and scaled
+   uniformly to the window: s = min(w/1920, h/1080). The backdrop and grain
+   stay full-bleed. Window: default 1920×1080 (or maximised), minimum 1600×900.
+   ===================================================================== */
+.screen { position: absolute !important; left: 50%; top: 50%; width: 1920px !important; height: 1080px !important;
+  transform: translate(-50%, -50%) scale(var(--fit, 1)); transform-origin: 50% 50%; }
+
+/* =====================================================================
+   LIGHT ROOM — used when the cover is light (mean luminance > 0.62).
+   A white / black-and-white sleeve gets a bright gallery room, dark ink,
+   a neutral glow. NEVER darken a light cover into grey mud.
+   GLOW COLOUR RULE (all rooms): if the cover is nearly achromatic
+   (mean OKLCH chroma < 0.05) the glow is NEUTRAL — never invent a hue.
+   ===================================================================== */
+body.room-light {
+  --ink-rgb: 22, 22, 24; --inverse: #f5f4f1;
+  /* re-declare the ladder: vars computed on :root don't follow a --ink-rgb override */
+  --ink: rgba(var(--ink-rgb), .92); --ink-2: rgba(var(--ink-rgb), .62); --ink-3: rgba(var(--ink-rgb), .44);
+  --ink-4: rgba(var(--ink-rgb), .28); --ink-5: rgba(var(--ink-rgb), .12); --ink-6: rgba(var(--ink-rgb), .06);
+  --glass-bg: rgba(255,255,255,.55); --glass-border: rgba(0,0,0,.07);
+  --glass-hi: inset 0 1px 0 rgba(255,255,255,.9);
+  --glass-shadow: 0 1px 2px rgba(0,0,0,.06), 0 12px 40px rgba(0,0,0,.10);
+}
+.room-light .backdrop { background: #e9e8e4; }
+.room-light .backdrop .blur { filter: blur(120px) saturate(1) brightness(1.02); opacity: .55; }
+.room-light .backdrop .tone { background: rgba(244, 243, 239, .55); }
+.room-light .backdrop .vignette { background: radial-gradient(120% 90% at 50% 48%, transparent 45%, rgba(0,0,0,.10) 100%); }
+.room-light .backdrop .glow { --glow: rgba(255,255,255,.95) !important; mix-blend-mode: normal; opacity: .75; }
+.room-light .pill-btn:hover { background: rgba(255,255,255,.8); }
+.room-light .grain { opacity: .05; mix-blend-mode: multiply; }

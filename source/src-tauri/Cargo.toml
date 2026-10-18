@@ -1,0 +1,25 @@
+[package]
+name = "turntable"
+version = "0.1.0"
+description = "A tactile local album player"
+authors = ["reinessant"]
+license = "MIT"
+repository = "https://github.com/reinessant/turntable"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset", "tray-icon", "image-png"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-http = "=2.7.0"
+tauri-plugin-store = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Registry"] }

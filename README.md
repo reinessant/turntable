@@ -15,7 +15,7 @@ Windows 10/11, x64. Your files are copied into the app's own folder, so moving t
 
 ## Download and install
 
-1. Open the **[Releases](../../releases)** page of this repository and download **`Turntable-Setup-0.1.0.exe`** from *Assets* (the same file is also in the root of this repository).
+1. Open the **[Releases](../../releases)** page of this repository and download **`Turntable-Setup-0.1.0.exe`** from *Assets*.
 2. Run it. Windows may say *"Windows protected your PC"* because the installer is not code-signed yet: click **More info → Run anyway**.
 3. Press **Install**. The setup finishes in a few seconds; keep *Open when done* ticked and Turntable starts by itself. The setup speaks English and Russian: the **RU / EN** switch is in its top-right corner (it starts in your system language).
 
@@ -70,6 +70,10 @@ source/
 └─ public/            static assets served as-is
 ```
 
+## License
+
+[MIT](LICENSE) © 2026 reinessant. Fonts, libraries and other bundled parts keep their own licences: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## Bugs and ideas
 
 Turntable is young and made by one person. If something breaks, looks off, or you are missing a feature, write to me – every message gets read:
@@ -94,7 +98,7 @@ Windows 10/11, x64. Файлы копируются в собственную п
 
 ## Скачать и установить
 
-1. Откройте страницу **[Releases](../../releases)** этого репозитория и скачайте **`Turntable-Setup-0.1.0.exe`** из блока *Assets* (тот же файл лежит и в корне репозитория).
+1. Откройте страницу **[Releases](../../releases)** этого репозитория и скачайте **`Turntable-Setup-0.1.0.exe`** из блока *Assets*.
 2. Запустите его. Windows может написать *«Система Windows защитила ваш компьютер»* – установщик пока не подписан сертификатом: нажмите **Подробнее → Выполнить в любом случае** (*More info → Run anyway*).
 3. Нажмите **Install** (**Установить**). Установка занимает несколько секунд; оставьте галочку «Запустить после установки» – Turntable запустится сам. Язык установщика переключается кнопками **RU / EN** в правом верхнем углу (по умолчанию – язык системы).
 
@@ -113,6 +117,10 @@ Windows 10/11, x64. Файлы копируются в собственную п
 ## Сборка из исходников
 
 Исходный код лежит в папке [`source/`](source). Нужны: Windows, Node.js 20+, pnpm, Rust (stable, MSVC) и WebView2. Команды – в разделе *Build from source* выше. Импорт из SoundCloud в публичной сборке выключен: ему нужны ваши собственные ключи (`.env.example` → `.env.local`).
+
+## Лицензия
+
+[MIT](LICENSE) © 2026 reinessant. Шрифты, библиотеки и прочие вложенные части сохраняют свои лицензии: см. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Баги и идеи
 

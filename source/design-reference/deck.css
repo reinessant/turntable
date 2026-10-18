@@ -1,0 +1,171 @@
+/* =====================================================================
+   DECK STYLES — materials are painted with gradients and layered shadows.
+   Light comes from the TOP-LEFT. Every highlight is top/left, every shade
+   and shadow is bottom/right. Never break this.
+   ===================================================================== */
+
+.deck { position: relative; }
+.deck > * { position: absolute; }
+
+/* ---------- Plinth ----------
+   Two finishes, both strict and "real hi-fi", never toy-like:
+   .finish-graphite  — matte anthracite powder-coat, diamond-cut chamfer (default)
+   .finish-alu       — brushed aluminium top plate, diamond-cut chamfer
+   The bright 1px chamfer line on the top & left edges is what makes it read
+   as a machined object. The body is otherwise almost featureless.        */
+.plinth { inset: 0; box-shadow: var(--shadow-object), 0 calc(var(--k) * 26px) calc(var(--k) * 30px) calc(var(--k) * -12px) rgba(0,0,0,.5); }
+.plinth::before { /* diamond-cut chamfer */
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 1px 0 var(--chamfer-hi), inset 1px 0 0 var(--chamfer-hi2), inset -1px 0 0 var(--chamfer-lo), inset 0 -1px 0 var(--chamfer-lo);
+}
+.plinth::after { /* the front face, visible because the deck tilts away = its thickness */
+  content: ""; position: absolute; left: 0; right: 0; bottom: calc(var(--k) * -6px);
+  height: calc(var(--k) * 12px); z-index: -1; border-radius: inherit; background: var(--front);
+}
+.finish-graphite {
+  --chamfer-hi: rgba(255,255,255,.34); --chamfer-hi2: rgba(255,255,255,.16); --chamfer-lo: rgba(0,0,0,.5);
+  --front: linear-gradient(180deg, #151517, #0c0c0d);
+}
+.finish-graphite .plinth {
+  background:
+    radial-gradient(130% 100% at 20% 0%, rgba(255,255,255,.055), transparent 60%),
+    linear-gradient(180deg, #2a2a2d 0%, #222225 55%, #1c1c1f 100%);
+}
+.finish-alu {
+  --chamfer-hi: rgba(255,255,255,.95); --chamfer-hi2: rgba(255,255,255,.6); --chamfer-lo: rgba(0,0,0,.28);
+  --front: linear-gradient(180deg, #a9a8a5, #7d7c79);
+}
+.finish-alu .plinth {
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.07) 0 1px, rgba(0,0,0,.035) 1px 2px, transparent 2px 3px),
+    radial-gradient(120% 90% at 22% 0%, rgba(255,255,255,.45), transparent 60%),
+    linear-gradient(180deg, #d9d8d5 0%, #c9c8c4 55%, #bab9b5 100%);
+}
+
+/* ---------- Platter well: a real recess cut into the body ---------- */
+.well {
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, #232220 0%, #171615 100%);
+  box-shadow:
+    inset 0 calc(var(--k) * 2.5px) calc(var(--k) * 5px) rgba(0,0,0,.65),
+    0 1px 0 var(--chamfer-hi),                  /* lit lower lip of the cut */
+    0 -1px 0 rgba(0,0,0,.25);
+}
+
+/* ---------- Platter: brushed aluminium rim with strobe dots ---------- */
+.platter {
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, transparent 94.6%, rgba(40,38,34,.9) 95%, rgba(40,38,34,.9) 96.2%, transparent 96.6%),
+    repeating-conic-gradient(from 0deg, #a9a9a8 0deg 3deg, #cfcfcd 4.5deg, #9d9d9b 7deg, #c2c2c0 9deg 11deg),
+    #b8b8b6;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.8);
+}
+.platter::after { /* strobe dots — a printed ring; drift while speed changes, lock at 33⅓ */
+  content: ""; position: absolute; inset: 1.1%; border-radius: 50%;
+  background: repeating-conic-gradient(rgba(30,28,25,.55) 0 1.2deg, transparent 1.2deg 4deg);
+  -webkit-mask: radial-gradient(circle, transparent 96.4%, #000 96.8%, #000 98.8%, transparent 99.2%);
+          mask: radial-gradient(circle, transparent 96.4%, #000 96.8%, #000 98.8%, transparent 99.2%);
+}
+.mat { border-radius: 50%; background: radial-gradient(circle, #3a3835, #2b2927); }
+
+/* ---------- Record ---------- */
+.record-shadow {
+  border-radius: 50%;
+  box-shadow: 0 calc(var(--k) * 1.5px) calc(var(--k) * 3px) rgba(0,0,0,.55),
+              0 calc(var(--k) * 4px) calc(var(--k) * 10px) rgba(0,0,0,.35);
+}
+.spin { border-radius: 50%; }
+.spin .vinyl { position: absolute; inset: 0; border-radius: 50%; }
+.spin .label {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  border-radius: 50%; overflow: hidden; background: #ece7de;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.35);
+}
+.spin .label img {
+  position: absolute; inset: calc(var(--k) * 2.2px); width: calc(100% - var(--k) * 4.4px); height: calc(100% - var(--k) * 4.4px);
+  border-radius: 50%; object-fit: cover;
+}
+.spin .label::after { /* paper sheen + slight edge darkening */
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.18), transparent 55%),
+              radial-gradient(circle, transparent 80%, rgba(0,0,0,.18) 100%);
+}
+.spin .hole { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; background: #1d1c1a; z-index: 2; }
+
+/* Rotation. Default = STOPPED. The class .is-playing is the ONLY thing that
+   turns it; pausing removes it. (In the app, speed is a damped value driven
+   by the audio engine — never a CSS animation. This is only the mockup.) */
+@keyframes spin33 { to { transform: rotate(360deg); } }
+.deck.is-playing .spin    { animation: spin33 1.8s linear infinite; }
+.deck.is-playing .platter { animation: spin33 1.8s linear infinite; }
+
+/* The sheen: two opposing wedges of light that STAY STILL while the record
+   turns underneath. This is the single most "real" cue on the whole screen. */
+.sheen {
+  border-radius: 50%; pointer-events: none;
+  background:
+    conic-gradient(from var(--sheen-angle, -62deg),
+      transparent 0deg, rgba(255,255,255,.22) 14deg, rgba(255,255,255,.05) 30deg, transparent 42deg,
+      transparent 180deg, rgba(255,255,255,.14) 194deg, rgba(255,255,255,.03) 210deg, transparent 222deg),
+    radial-gradient(ellipse 70% 55% at 30% 22%, rgba(255,255,255,.06), transparent 70%);
+  mix-blend-mode: screen;
+  -webkit-mask: radial-gradient(circle, transparent 33.6%, #000 35%, #000 97.5%, transparent 99%);
+          mask: radial-gradient(circle, transparent 33.6%, #000 35%, #000 97.5%, transparent 99%);
+}
+.spindle {
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffffff, #bdb9b2 45%, #6d6a64 100%);
+  box-shadow: 0 1px 2px rgba(0,0,0,.6);
+}
+
+/* ---------- Tonearm ---------- */
+.arm, .arm-shadow { inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.arm-shadow {
+  opacity: .30; transform: translate(calc(var(--k) * 7px), calc(var(--k) * 9px));
+  transition: transform var(--d-slow) var(--ease-io), opacity var(--d-slow) var(--ease-io);
+}
+.deck.needle-down .arm-shadow { opacity: .42; transform: translate(calc(var(--k) * 2.5px), calc(var(--k) * 3.5px)); }
+.arm-rot { transition: transform 900ms var(--ease-io); }
+
+/* ---------- Controls on the plinth: machined, minimal ---------- */
+.knob { /* machined aluminium knob: concentric turning marks + a single index line */
+  border-radius: 50%;
+  background:
+    linear-gradient(0deg, transparent 47%, rgba(0,0,0,.55) 47% 53%, transparent 53%) 50% 8% / 1.5px 30% no-repeat,
+    repeating-radial-gradient(circle, rgba(255,255,255,.10) 0 .6px, rgba(0,0,0,.06) .6px 1.3px),
+    radial-gradient(circle at 35% 30%, #f2f2f0, #a7a7a4 60%, #6f6f6c 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 0 0 1px rgba(0,0,0,.35),
+              0 calc(var(--k) * 1.5px) calc(var(--k) * 3px) rgba(0,0,0,.45);
+}
+.knob.small { background:
+    repeating-radial-gradient(circle, rgba(255,255,255,.10) 0 .6px, rgba(0,0,0,.06) .6px 1.3px),
+    radial-gradient(circle at 35% 30%, #f2f2f0, #a7a7a4 60%, #6f6f6c 100%); }
+.led { border-radius: 50%; background: #3a3a3c; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.6); }
+.led.on { background: #f4f7ff; box-shadow: 0 0 4px 1px rgba(210,225,255,.75); }   /* cold white, tiny. No orange. */
+.engrave { font-family: var(--mono); letter-spacing: .04em; color: var(--engrave, rgba(255,255,255,.28)); line-height: 1; white-space: nowrap; }
+.finish-alu .engrave { --engrave: rgba(0,0,0,.38); }
+.cue { /* cue lever: slim machined bar */
+  border-radius: calc(var(--k) * 3.5px);
+  background: linear-gradient(180deg, #e9e9e7, #9a9a97 60%, #7b7b78);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 calc(var(--k) * 2px) calc(var(--k) * 3px) rgba(0,0,0,.4);
+}
+.rest { /* arm rest: small dark post with a cradle */
+  border-radius: calc(var(--k) * 3px);
+  background: linear-gradient(90deg, transparent 32%, #050505 32% 68%, transparent 68%) center 30% / 100% 40% no-repeat,
+              linear-gradient(180deg, #4a4a4c, #242426);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 calc(var(--k) * 1.5px) calc(var(--k) * 3px) rgba(0,0,0,.45);
+}
+
+/* ---------- Clickable controls on the deck ---------- */
+.deck [data-act] { cursor: pointer; transition: transform 120ms var(--ease-out), box-shadow 160ms var(--ease-out), filter 160ms; }
+.deck [data-act]:hover { filter: brightness(1.12); }
+.deck .knob[data-act]:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 0 0 1px rgba(0,0,0,.35), 0 0 0 3px rgba(255,255,255,.14), 0 calc(var(--k) * 1.5px) calc(var(--k) * 3px) rgba(0,0,0,.45); }
+.deck [data-act]:active { transform: scale(.93); filter: brightness(.95); }   /* physically pressed */
+.deck [data-act]::after { /* micro tooltip above the control */
+  content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 10px); transform: translate(-50%, 4px);
+  font: 500 11px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap;
+  color: var(--ink); background: rgba(20,20,22,.85); padding: 6px 8px; border-radius: 6px;
+  opacity: 0; pointer-events: none; transition: opacity 140ms, transform 140ms var(--ease-out);
+}
+.deck [data-act]:hover::after { opacity: 1; transform: translate(-50%, 0); }

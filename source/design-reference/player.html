@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Player — design reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="deck.css">
+<style>
+/* =====================================================================
+   PLAYER LAYOUT — reference 1920 × 1080
+   ┌ header ............................................ y 44–76     ┐
+   │ track carousel (discs) ............................ y 112–236    │
+   │ left column │ cover card + deck (centred) │ lyrics  y 280–940    │
+   └ transport capsule ................................. y 980–1040   ┘
+   ===================================================================== */
+.screen { position: relative; z-index: 1; width: 100vw; height: 100vh; }
+
+/* ---------- Track carousel: records orbiting a vertical axis ----------
+   The tracks are small records standing on a ring around an invisible pole.
+   The wheel turns the ring. Front record = current track (largest, sharp,
+   spinning when playing); records at the sides turn edge-on and recede;
+   records behind the pole fade out.                                     */
+.carousel {
+  position: absolute; left: 50%; top: 76px; width: 900px; height: 170px; margin-left: -450px;
+  /* no CSS mask here: masking a preserve-3d subtree flattens it and clips the shadows. Fade is per-record opacity. */
+}
+.ring { position: absolute; left: 50%; top: 70px; width: 0; height: 0; }
+/* front half of the orbit only */
+.orbit { /* faint ellipse = the path of the ring on the "floor". Sells "rotating around an axis". Plain 2D SVG. */
+  position: absolute; left: 50%; top: 96px; width: 640px; height: 56px; margin-left: -320px; overflow: visible;
+}
+.cdisc {
+  position: absolute; left: -50px; top: -50px; width: 100px; height: 100px; border-radius: 50%;
+  cursor: pointer;
+}
+.cdisc .dim { position: absolute; inset: 0; border-radius: 50%; background: #0b0b0d; pointer-events: none; } /* darkens side records; no CSS filter (filters on 3D elements rasterise and clip) */
+.cdisc .spinme { position: absolute; inset: 0; border-radius: 50%; }
+.cdisc .v {
+  position: absolute; inset: 0; border-radius: 50%;
+  background:
+    radial-gradient(circle, transparent 40%, rgba(255,255,255,.05) 41%, transparent 43%, transparent 60%, rgba(255,255,255,.05) 61%, transparent 63%, transparent 80%, rgba(255,255,255,.05) 81%, transparent 83%),
+    radial-gradient(circle at 50% 50%, #1b1b1e, #111113);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.cdisc .shadow { /* soft shadow as its own element, so it is never clipped */
+  position: absolute; left: -18%; right: -18%; top: -8%; bottom: -30%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(0,0,0,.45), transparent); transform: translateY(10%);
+}
+.cdisc .sh { /* fixed sheen: does not spin */
+  position: absolute; inset: 0; border-radius: 50%; mix-blend-mode: screen; pointer-events: none;
+  background: conic-gradient(from -62deg, transparent, rgba(255,255,255,.2) 14deg, transparent 36deg, transparent 180deg, rgba(255,255,255,.11) 194deg, transparent 216deg);
+  -webkit-mask: radial-gradient(circle, transparent 33%, #000 35%); mask: radial-gradient(circle, transparent 33%, #000 35%);
+}
+.cdisc .l { position: absolute; inset: 32%; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+.cdisc .l img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cdisc .l::after { content: ""; position: absolute; left: 50%; top: 50%; width: 3px; height: 3px; margin: -1.5px; border-radius: 50%; background: #111; }
+.cdisc .ringfocus { position: absolute; inset: -6px; border-radius: 50%; border: 1px solid var(--ink-4); opacity: 0; transition: opacity 300ms; }
+.cdisc.active .ringfocus { opacity: 1; }
+.playing .cdisc.active .spinme { animation: spin 1.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.carousel-caption {
+  position: absolute; left: 0; right: 0; top: 214px; text-align: center; font: var(--t-body); color: var(--ink-2);
+  transition: opacity 200ms var(--ease-out);
+}
+.carousel-caption .mono { color: var(--ink-4); margin-right: 10px; }
+
+/* ---------- Left column: album + tracklist ---------- */
+/* The album title's top aligns with the plinth's top edge (y ≈ 379). */
+.left { position: absolute; left: var(--page-x); top: 330px; width: 336px; }   /* top = plinth top */
+.album-cover { width: 120px; height: 120px; border-radius: 3px; overflow: hidden; margin-bottom: 24px; box-shadow: var(--shadow-card); position: relative; }
+.album-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.album-cover::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 0 0 1px rgba(0,0,0,.12); }
+.album-title { font: var(--t-display); font-stretch: var(--st-display); letter-spacing: var(--tr-display); color: var(--ink); }
+.album-artist { margin-top: 10px; font: var(--t-body-lg); color: var(--ink-2); }
+.album-meta { margin-top: 12px; display: flex; gap: 14px; }
+.album-meta .mono { color: var(--ink-3); }
+.tracks { /* ends 40 px above the capsule; long albums scroll, the current row is kept in view */
+  margin-top: 28px; margin-left: -12px; max-height: 344px; position: relative; overflow-y: auto; scrollbar-width: none; scroll-behavior: smooth;
+  -webkit-mask: linear-gradient(180deg, transparent 0, #000 6%, #000 86%, transparent); mask: linear-gradient(180deg, transparent 0, #000 6%, #000 86%, transparent); padding-top: 8px; }
+.tracks::-webkit-scrollbar { display: none; }
+.trk .t .x { color: var(--ink-4); font-weight: 400; margin-left: 6px; }   /* "prod …" / "ft …" credit, muted */
+.trk {
+  height: 36px; display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px;
+  padding: 0 12px; border-radius: 8px; color: var(--ink-2); cursor: pointer;
+  transition: background var(--d-fast) var(--ease-out), color var(--d-fast);
+}
+.trk:hover { background: var(--ink-6); color: var(--ink); }
+.trk .mono { color: var(--ink-4); }
+.trk .t { font: var(--t-body); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.trk.on { color: var(--ink); background: var(--ink-6); }
+.trk.on .t { font-weight: 550; }
+.trk .dot { width: 10px; height: 10px; border-radius: 50%; margin-left: 2px; background:
+  radial-gradient(circle, var(--ink) 18%, transparent 22%), radial-gradient(circle, #111 60%, transparent 62%);
+  box-shadow: 0 0 0 1px var(--ink-3); }
+
+/* ---------- Stage: cover card + deck ---------- */
+/* Stage is centred so the deck's centre sits at y 565 (screen centre 540 + a little for the ring above). */
+.stage { position: absolute; left: 0; right: 0; top: 232px; height: 626px; perspective: 2400px; }   /* deck centre y 545 */
+.group {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 40px;
+}
+.tilt { transform: rotateX(var(--tx, 5deg)) rotateY(var(--ty, 0deg)); transition: transform 900ms var(--ease-out); }
+.card {
+  width: 196px; height: 196px; border-radius: 3px; overflow: hidden; flex: none;
+  box-shadow: var(--shadow-card);   /* straight, not tilted: strict */
+  position: relative;
+}
+.card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.card::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 0 0 1px rgba(0,0,0,.12);
+  background: linear-gradient(135deg, rgba(255,255,255,.14), transparent 40%); }
+
+/* ---------- Lyrics ---------- */
+.lyrics { /* the ACTIVE line is centred on the deck's centre (y 565) */
+  position: absolute; right: var(--page-x); top: 345px; width: 400px; height: 400px; overflow: hidden;
+  -webkit-mask: linear-gradient(180deg, transparent 0, #000 22%, #000 74%, transparent 100%);
+          mask: linear-gradient(180deg, transparent 0, #000 22%, #000 74%, transparent 100%);
+}
+.lyrics .inner { position: absolute; left: 0; right: 0; top: 0; transition: transform 700ms var(--ease-out); }
+.ly {
+  font: var(--t-lyric); letter-spacing: -0.01em; color: var(--ink); margin-bottom: 20px;
+  transform-origin: left center; transition: all 520ms var(--ease-out); cursor: pointer;
+}
+.ly.on { font: var(--t-lyric-on); font-stretch: var(--st-lyric); letter-spacing: var(--tr-lyric); opacity: 1; filter: none; }
+
+/* ---------- Transport capsule ---------- */
+.capsule {
+  position: absolute; left: 50%; bottom: var(--page-bottom); transform: translateX(-50%);
+  width: 720px; height: 60px; padding: 0 12px; border-radius: var(--r-pill);
+  display: flex; align-items: center; gap: 4px;
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-hi), var(--glass-shadow);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+}
+.play {
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; margin: 0 4px;
+  background: var(--ink); color: var(--inverse);
+  box-shadow: 0 1px 0 rgba(255,255,255,.4) inset, 0 4px 14px rgba(0,0,0,.3);
+  transition: transform var(--d-fast) var(--ease-out);
+}
+.play:active { transform: scale(.94); }
+.time { width: 44px; color: var(--ink-3); text-align: center; }
+.bar { flex: 1; height: 20px; display: flex; align-items: center; margin: 0 6px; cursor: pointer; }
+.bar .track { position: relative; width: 100%; height: 3px; border-radius: 3px; background: var(--ink-5); }
+.bar .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--ink); }
+.bar .thumb { position: absolute; top: 50%; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; border-radius: 50%;
+  background: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.4); opacity: 0; transition: opacity var(--d-fast); }
+.bar:hover .thumb { opacity: 1; }
+.sep { width: 1px; height: 20px; background: var(--ink-5); margin: 0 6px; }
+</style>
+</head>
+<body>
+<div class="backdrop">
+  <img class="blur" src="cover.jpg" alt="">
+  <div class="tone"></div>
+  <div class="glow" style="--glow: rgba(58, 86, 255, .55); --glow-x: 50%; --glow-y: 50%"></div>
+  <div class="vignette"></div>
+</div>
+
+<div class="screen" id="screen">
+  <header class="header">
+    <button class="pill-btn"><span data-icon="caret-left" data-size="14"></span>Crate</button>
+    <button class="pill-btn"><span data-icon="pencil-simple" data-size="14"></span>Edit album</button>
+  </header>
+
+  <div class="carousel" id="carousel"><svg class="orbit" viewBox="0 0 640 56"><defs><linearGradient id="og" x1="0" x2="1"><stop offset="0" stop-color="currentColor" stop-opacity="0"/><stop offset=".5" stop-color="currentColor" stop-opacity=".22"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs><path d="M2 14 A318 26 0 0 0 638 14" fill="none" stroke="url(#og)" stroke-width="1" style="color:rgb(var(--ink-rgb))"/></svg><div class="ring" id="ring"></div></div>
+  <div class="carousel-caption" id="caption"></div>
+
+  <section class="left">
+    <div class="album-cover"><img src="cover.jpg" alt=""></div>
+    <h1 class="album-title">Half Blood</h1>
+    <div class="album-artist">slayr</div>
+    <div class="album-meta"><span class="mono">2025</span><span class="mono">12 tracks</span><span class="mono">29:52</span></div>
+    <div class="tracks" id="tracks"></div>
+  </section>
+
+  <div class="stage">
+    <div class="group" id="group">
+      <div class="tilt" id="tilt"><div id="deck"></div></div>
+    </div>
+  </div>
+
+  <section class="lyrics"><div class="inner" id="lyrics"></div></section>
+
+  <div class="capsule">
+    <button class="icon-btn"><span data-icon="skip-back"></span></button>
+    <button class="play" id="play"><span id="playicon"></span></button>
+    <button class="icon-btn"><span data-icon="skip-forward"></span></button>
+    <span class="time mono" id="el">0:41</span>
+    <div class="bar"><div class="track"><div class="fill" id="fill"></div><div class="thumb" id="thumb"></div></div></div>
+    <span class="time mono" id="tot">2:26</span>
+    <span class="sep"></span>
+    <button class="icon-btn"><span data-icon="heart"></span></button>
+    <button class="icon-btn"><span data-icon="speaker-high"></span></button>
+  </div>
+</div>
+<div class="grain"></div>
+
+<script src="icons.js"></script>
+<script src="deck.js"></script>
+<script>
+const LIGHT = new URLSearchParams(location.search).get("room") === "light";
+const ALBUM = LIGHT ? { title: "Unmusique", artist: "Lucy Bedroque", cover: "cover-light.jpg" } : { title: "Half Blood", artist: "slayr", cover: "cover.jpg" };
+const TRACKS_LIGHT = [["2010 justin bieber prod m8i","1:52"],["cara mia prod lucy bedroque","2:34"],["cat's eye prod 9lives","1:59"],["fenty face prod skai","2:14"],
+  ["finish him ft jackzebra prod 2dah ivvy","1:43"],["g6 anthem prod lucy bedroque","3:15"],["i am impossible prod m8i","1:58"],["ignorant prod cranes yk","2:13"],
+  ["lucy bedroque - yes, you may prod cranes","1:53"],["made in italy prod 177p pop north","2:06"],["one of us is lying prod lucy bedroque","3:19"],["ouija prod skai","2:08"],
+  ["smackdown prod egobreak","2:18"],["speakers never learn prod lucy bedroque","2:15"],["tout naturel prod blxty inno rochambeau","2:31"],["ultraviolet ft prettifun prod egobreak 9lives","3:13"],["unmusique prod lucy bedroque","2:30"]];
+const TRACKS = LIGHT ? TRACKS_LIGHT : [["Love Blur","2:46"],["Demigod","2:47"],["Sloppy Joe","2:26"],["Never Going Down","2:00"],["Wipe Yo Nose","3:08"],
+  ["24/7","2:06"],["Phone Interlude","2:08"],["Power 4","1:40"],["Death by MP3","2:35"],["Holding","2:33"],["The Sky","3:39"],["Set In Stone","2:04"]];
+// "speakers never learn prod lucy bedroque" → main "speakers never learn" + credit "prod lucy bedroque"
+function splitTitle(t, artist) {
+  let s = t.trim();
+  if (artist && s.toLowerCase().startsWith(artist.toLowerCase() + " - ")) s = s.slice(artist.length + 3);
+  const m = s.match(/\s(\(?(?:prod\.?|ft\.?|feat\.?|with)\s.*)$/i);
+  return m ? [s.slice(0, m.index), m[1]] : [s, ""];
+}
+const sec = s => { const [m, x] = s.split(":"); return +m * 60 + +x; };
+const DUR = TRACKS.map(t => sec(t[1])), TOTAL = DUR.reduce((a, b) => a + b);
+const CUM = DUR.map((_, i) => DUR.slice(0, i + 1).reduce((a, b) => a + b) / TOTAL).slice(0, -1);
+
+// Lyrics: PLACEHOLDER lines — the app shows real synced LRC here.
+const LYR = ["Placeholder line for the lyric before", "Another line that already went by", "The active line sits here, larger and bright",
+  "The next line waits a little dimmer", "Further lines fade and soften", "Softer still, almost gone", "And the last one barely there", "—"];
+
+let cur = LIGHT ? 13 : 2, pos = LIGHT ? 20 : 41, playing = true;
+if (LIGHT) { document.body.classList.add("room-light"); document.querySelectorAll('img[src="cover.jpg"]').forEach(i => i.src = ALBUM.cover);
+  document.querySelector(".album-title").textContent = ALBUM.title; document.querySelector(".album-artist").textContent = ALBUM.artist;
+  document.querySelector(".album-meta").innerHTML = '<span class="mono">2025</span><span class="mono">17 tracks</span><span class="mono">40:09</span>'; }
+const deckEl = document.getElementById("deck");
+function renderDeck() {
+  const f = (DUR.slice(0, cur).reduce((a, b) => a + b, 0) + pos) / TOTAL;
+  const r = 146 - f * (146 - 62);
+  buildDeck(deckEl, { finish: new URLSearchParams(location.search).get("finish") || "graphite", widthPx: 680, cover: ALBUM.cover, trackFractions: CUM, playing, stylusRadiusMm: playing ? r : null });
+}
+
+// ---- carousel: records on a ring around a vertical axis ----
+// One continuous value `ringPos` (float track index) is damped toward `ringTarget`.
+// Every disc's transform is derived from (index − ringPos) each frame — never set per disc.
+const ring = document.getElementById("ring");
+ring.innerHTML = TRACKS.map((t, i) => `<div class="cdisc" data-i="${i}" title="${String(i + 1).padStart(2, "0")} · ${t[0]}"><div class="shadow"></div><div class="ringfocus"></div><div class="spinme"><div class="v"></div><div class="l"><img src="${ALBUM.cover}"></div></div><div class="sh"></div><div class="dim"></div></div>`).join("");
+const discs = [...ring.children];
+const R = 340, STEP = 30 * Math.PI / 180;   // ring radius px, angle between records (wide enough that neighbours never overlap)
+let ringPos = cur, ringTarget = cur, ringVel = 0, lastT = performance.now();
+function frame(t) {
+  const dt = Math.min(0.05, (t - lastT) / 1000); lastT = t;
+  // critically-damped spring toward the target (ω = 11) — smooth, no overshoot
+  const w = 11, x = ringPos - ringTarget;
+  const acc = -w * w * x - 2 * w * ringVel;
+  ringVel += acc * dt; ringPos += ringVel * dt;
+  discs.forEach((el, i) => {
+    const th = (i - ringPos) * STEP;
+    // Project the ring ourselves in 2D (no CSS 3D layers → no clipping, no blurry rasterisation):
+    const x = Math.sin(th) * R, z = (Math.cos(th) - 1) * R;         // z ≤ 0: further away
+    const persp = 900 / (900 - z);                                   // perspective scale
+    const front = Math.max(0, Math.cos(th));                         // 1 front → 0 at the sides
+    const s = (0.76 + 0.24 * Math.max(0, 1 - Math.abs(i - ringPos))) * persp;
+    const turn = Math.max(0.35, Math.cos(th * 0.6));                 // turns partly edge-on — never a sliver
+    el.style.transform = `translate(${x * persp}px, ${z * 0.06}px) scale(${s * turn}, ${s})`;
+    // visible only within ±80°, fading out from 55° → 80°. Nothing behind the pole, no slivers at the ends.
+    const a = Math.abs(th) * 180 / Math.PI;
+    el.style.opacity = a >= 80 ? 0 : a <= 55 ? 1 : 1 - (a - 55) / 25;
+    el.style.visibility = a >= 80 ? "hidden" : "visible";
+    el.querySelector(".shadow").style.opacity = turn;               // edge-on records cast less shadow
+    el.style.zIndex = Math.round(front * 100);
+    el.querySelector(".dim").style.opacity = (1 - front) * 0.55;
+    el.style.zIndex = Math.round(front * 100);
+  });
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+function setCurrent(i, commitDelay) {
+  cur = Math.max(0, Math.min(TRACKS.length - 1, i)); ringTarget = cur;
+  discs.forEach((el, k) => el.classList.toggle("active", k === cur));
+  const cap = document.getElementById("caption");
+  cap.style.opacity = 0;
+  setTimeout(() => { cap.innerHTML = `<span class="mono">${String(cur + 1).padStart(2, "0")}</span>${splitTitle(TRACKS[cur][0], ALBUM.artist)[0]}`; cap.style.opacity = 1; }, 140);
+  layoutTracks();
+  clearTimeout(commitT); commitT = setTimeout(() => { pos = 0; renderDeck(); }, commitDelay);   // arm travels once the ring settles
+}
+function layoutCarousel() { setCurrent(cur, 0); }
+let wheelAcc = 0, commitT;
+document.getElementById("carousel").addEventListener("wheel", e => {
+  e.preventDefault(); wheelAcc += e.deltaY + e.deltaX;
+  if (Math.abs(wheelAcc) >= 50) { setCurrent(cur + Math.sign(wheelAcc), 450); wheelAcc = 0; }
+}, { passive: false });
+ring.addEventListener("click", e => { const d = e.target.closest(".cdisc"); if (d) setCurrent(+d.dataset.i, 0); });
+
+// ---- tracklist ----
+const tr = document.getElementById("tracks");
+function layoutTracks() {
+  tr.innerHTML = TRACKS.map((t, i) => `<div class="trk ${i === cur ? "on" : ""}" data-i="${i}">${i === cur ? '<span class="dot"></span>' : `<span class="mono">${String(i + 1).padStart(2, "0")}</span>`}<span class="t">${splitTitle(t[0], ALBUM.artist)[0]}<span class="x">${splitTitle(t[0], ALBUM.artist)[1]}</span></span><span class="mono">${t[1]}</span></div>`).join("");
+  const on = tr.querySelector(".trk.on"); if (on) tr.scrollTop = Math.max(0, on.offsetTop - tr.clientHeight * 0.35);
+  document.getElementById("tot").textContent = TRACKS[cur][1];
+  const p = pos / DUR[cur] * 100; document.getElementById("fill").style.width = p + "%"; document.getElementById("thumb").style.left = p + "%";
+}
+tr.addEventListener("click", e => { const d = e.target.closest(".trk"); if (d) setCurrent(+d.dataset.i, 0); });
+
+// ---- lyrics ----
+const ly = document.getElementById("lyrics"), ON = 2;
+ly.innerHTML = LYR.map((l, i) => `<div class="ly ${i === ON ? "on" : ""}">${l}</div>`).join("");
+ly.querySelectorAll(".ly").forEach((el, i) => {
+  const d = Math.abs(i - ON), op = [1, .46, .28, .16, .09, .05][Math.min(d, 5)], bl = [0, 0, 0, .6, 1.2, 1.6][Math.min(d, 5)];
+  el.style.opacity = op; el.style.filter = bl ? `blur(${bl}px)` : "none";
+});
+requestAnimationFrame(() => { const on = ly.querySelector(".ly.on"); ly.style.transform = `translateY(${400 * 0.5 - on.offsetTop - on.offsetHeight / 2}px)`; });
+
+// ---- play / pause: pause STOPS the platter (tape stop) ----
+const setPlayIcon = () => (document.getElementById("playicon").innerHTML = icon(playing ? "pause-fill" : "play-fill", 18));
+function togglePlay() { playing = !playing; document.getElementById("screen").classList.toggle("playing", playing); setPlayIcon(); renderDeck(); }
+document.getElementById("play").onclick = togglePlay;
+// the physical controls on the deck are real buttons
+deckEl.addEventListener("click", e => { const a = e.target.closest("[data-act]"); if (!a) return;
+  if (a.dataset.act === "play" || a.dataset.act === "cue") togglePlay(); });
+
+// ---- subtle tilt toward the cursor (±1.5°) ----
+const tilt = document.getElementById("tilt");
+addEventListener("mousemove", e => {
+  const nx = e.clientX / innerWidth - .5, ny = e.clientY / innerHeight - .5;
+  tilt.style.setProperty("--tx", (5 - ny * 2.5) + "deg"); tilt.style.setProperty("--ty", (nx * 2.5) + "deg");
+  deckEl.style.setProperty("--sheen-angle", (-62 + nx * 16) + "deg");
+});
+
+document.getElementById("screen").classList.toggle("playing", playing);
+layoutTracks(); renderDeck(); setCurrent(cur, 0); setPlayIcon();
+</script>
+</body>
+</html>

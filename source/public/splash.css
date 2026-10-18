@@ -1,0 +1,22 @@
+/* Launch splash (see index.html). A linked file, not an inline <style>: an inline style block makes Tauri
+   add a nonce to style-src, which turns off 'unsafe-inline' and breaks the deck's inline positions. */
+html, body { margin: 0; background: transparent; }
+#splash { position: fixed; inset: 0; z-index: 400; pointer-events: auto; }
+#splash .disc { position: absolute; left: 50%; top: 50%; width: 280px; height: 280px; margin: -140px 0 0 -140px; border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.05), 0 24px 60px rgba(0,0,0,.7); }
+#splash .rotor { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; animation: splash-spin 1.8s linear infinite;
+  background: radial-gradient(circle, transparent 0 31%, rgba(0,0,0,.35) 31.5%, transparent 33%), repeating-radial-gradient(circle, #131315 0 1.4px, #1b1b1e 1.4px 2.8px), #151517; }
+#splash .label { position: absolute; left: 33%; top: 33%; width: 34%; height: 34%; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.45);
+  background: radial-gradient(circle at 38% 32%, #f4efe4, #e4ddcd 70%, #d6cdba); }
+#splash .label svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+#splash .label text { font: 600 5.2px/1 system-ui, sans-serif; letter-spacing: .9px; fill: rgba(28,26,24,.7); }
+#splash .label text.mark { font: 800 italic 11px/1 system-ui, sans-serif; letter-spacing: -.3px; fill: #1c1a18; }
+#splash .label i { position: absolute; left: 50%; top: 50%; width: 5%; height: 5%; margin: -2.5%; border-radius: 50%; background: #0b0b0c; }
+#splash .sheen { position: absolute; inset: 0; border-radius: 50%; mix-blend-mode: screen;
+  background: conic-gradient(from 205deg, transparent 0 8%, rgba(255,255,255,.10) 13%, transparent 19%, transparent 50%, rgba(255,255,255,.07) 63%, transparent 69%);
+  -webkit-mask: radial-gradient(circle, transparent 0 34%, #000 35%); mask: radial-gradient(circle, transparent 0 34%, #000 35%); }
+#splash .ring { position: absolute; border-radius: 50%; opacity: 0; pointer-events: none;
+  border: 2px solid rgba(255, 240, 222, .85); box-shadow: 0 0 22px 3px rgba(255, 226, 190, .35), inset 0 0 22px 3px rgba(255, 226, 190, .25); }
+#splash .rim { position: fixed; inset: 0; pointer-events: none; mix-blend-mode: screen; }
+@keyframes splash-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #splash .rotor { animation: none; } }
