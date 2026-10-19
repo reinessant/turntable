@@ -11,12 +11,16 @@
 - **Search** – `Ctrl+K` finds albums, artists and tracks, even with the wrong keyboard layout or a typo.
 - **Make it yours** – turntable and record colours, the mini player's body, display and cassette, dust in the air, start with Windows.
 
+![Crate](docs/screenshots/crate.webp)
+
+![Turntable with synced lyrics](docs/screenshots/turntable.webp)
+
+![Plugin rack](docs/screenshots/plugins.webp)
+
 <p align="center">
-  <img src="docs/screenshots/crate.webp" alt="Crate" width="49%">
-  <img src="docs/screenshots/turntable.webp" alt="Turntable with synced lyrics" width="49%">
-  <img src="docs/screenshots/plugins.webp" alt="Plugin rack" width="49%">
-  <img src="docs/screenshots/mini-player.png" alt="Mini player" height="300">
-  <img src="docs/screenshots/tray.png" alt="Tray menu" height="300">
+  <img src="docs/screenshots/mini-player.png" alt="Mini player" height="420">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/tray.png" alt="Tray menu" height="420">
 </p>
 
 Windows 10/11, x64. Your files are copied into the app's own folder, so moving the originals later changes nothing.
