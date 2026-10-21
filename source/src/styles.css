@@ -5,6 +5,8 @@
 @import "./import-reference.css";
 @import "./plugins.css";
 @import "./settings.css";
+@import "./library.css";
+@import "./stats.css";
 
 /* =====================================================================
    TYPE — interface text is Inter Tight (Latin + Cyrillic). Lyrics keep their
@@ -227,6 +229,12 @@ body { font-feature-settings: "cv11", "ss03"; letter-spacing: -0.005em; }
 /* Tracklist rows are <button>s: stretch them like the reference's divs. */
 .tracks .trk { width: 100%; text-align: left; }
 
+/* Shuffle / repeat in the transport capsule: dim when off, lit with a dot under the icon when on. */
+.capsule .icon-btn.mode { position: relative; width: 32px; color: var(--ink-4); }
+.capsule .icon-btn.mode:hover { color: var(--ink-2); }
+.capsule .icon-btn.mode.on { color: var(--ink); }
+.capsule .icon-btn.mode.on::after { content: ""; position: absolute; left: 50%; bottom: 4px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: currentColor; }
+
 /* Volume: icon toggles mute, hover opens a vertical slider in its own mini-capsule (FIX_ROUND_3 §7.6). */
 .volume-control { position: relative; display: flex; }
 .volume-control.muted .icon-btn { color: var(--ink-4); }
@@ -261,7 +269,7 @@ body { font-feature-settings: "cv11", "ss03"; letter-spacing: -0.005em; }
 }
 
 .error-screen { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px; background: #1b1a22; color: #f3f1ec; font: 16px Geist,sans-serif; }
-.error-screen pre { max-width: 80vw; white-space: pre-wrap; font: 14px Geist Mono,monospace; }
+.error-screen pre { max-width: 80vw; white-space: pre-wrap; font: 14px "Inter Tight", system-ui, sans-serif; }
 .error-screen button { padding: 10px 16px; border: 1px solid #888; border-radius: 20px; }
 
 /* ---------- SoundCloud: crate header account, menu, attribution ---------- */

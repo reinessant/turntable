@@ -11,6 +11,7 @@ import "./welcome.css";
 
 export const TELEGRAM = { handle: "@openwoundsdotcom", url: "https://t.me/openwoundsdotcom" };
 export const DISCORD = { handle: "reinessant" };
+export const CHANNEL = { handle: "@turntabletg", url: "https://t.me/turntabletg" };
 
 const TEXT = {
   en: {
@@ -24,7 +25,7 @@ const TEXT = {
     ],
     feedbackTitle: "Found a bug or have an idea?",
     feedback: "Turntable is young and made by one person. If something breaks, looks off or you are missing a feature — write to me here. Every message gets read.",
-    telegram: "Telegram", discord: "Discord",
+    telegram: "Telegram", discord: "Discord", channel: "Telegram channel",
     open: "Open", copy: "Copy", copied: "Copied",
     start: "Get started", guide: "Quick guide",
     again: "You can open this screen and the guide again in Settings → About."
@@ -40,14 +41,14 @@ const TEXT = {
     ],
     feedbackTitle: "Нашли баг или есть идея?",
     feedback: "Turntable ещё молодой, и делает его один человек. Если что-то ломается, выглядит криво или не хватает фичи — пишите сюда. Читаю всё.",
-    telegram: "Telegram", discord: "Discord",
+    telegram: "Telegram", discord: "Discord", channel: "Telegram-канал",
     open: "Открыть", copy: "Копировать", copied: "Скопировано",
     start: "Поехали", guide: "Мини-гайд",
-    again: "Это окно и гайд можно открыть снова: Settings → About."
+    again: "Это окно и гайд можно открыть снова: Настройки → О программе."
   }
 } as const;
 
-async function copyText(text: string): Promise<boolean> {
+export async function copyText(text: string): Promise<boolean> {
   try { await navigator.clipboard.writeText(text); return true; }
   catch {
     // no clipboard permission: the old way, through a hidden field
@@ -60,13 +61,14 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-function openTelegram(): void {
-  if (isTauri()) void invoke("open_contact", { url: TELEGRAM.url }).catch((error) => useApp.setState({ message: String(error) }));
-  else window.open(TELEGRAM.url, "_blank", "noopener");
+export function openTelegram(url: string = TELEGRAM.url): void {
+  if (isTauri()) void invoke("open_contact", { url }).catch((error) => useApp.setState({ message: String(error) }));
+  else window.open(url, "_blank", "noopener");
 }
 
-const Plane = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2 1.8 6.8l4.4 1.7M14 2l-3.2 11-4.6-4.5M14 2 6.2 8.5m0 0V13l2.2-2.3" /></svg>;
-const Bubble = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2.5 3h11v7.5H8L5 13.2v-2.7H2.5z" /><circle cx="6" cy="6.8" r=".5" fill="currentColor" /><circle cx="10" cy="6.8" r=".5" fill="currentColor" /></svg>;
+export const Plane = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2 1.8 6.8l4.4 1.7M14 2l-3.2 11-4.6-4.5M14 2 6.2 8.5m0 0V13l2.2-2.3" /></svg>;
+export const Megaphone = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2.5 6.2v3.6h2.2L10 12.8V3.2L4.7 6.2zM12.4 6a2.8 2.8 0 0 1 0 4M4.8 9.8l.8 3.2" /></svg>;
+export const Bubble = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2.5 3h11v7.5H8L5 13.2v-2.7H2.5z" /><circle cx="6" cy="6.8" r=".5" fill="currentColor" /><circle cx="10" cy="6.8" r=".5" fill="currentColor" /></svg>;
 
 function Contact({ icon, name, handle, copy, copied, onCopy, open, onOpen }: {
   icon: React.ReactNode; name: string; handle: string; copy: string; copied: boolean; onCopy: () => void; open?: string; onOpen?: () => void;
@@ -82,7 +84,7 @@ function Contact({ icon, name, handle, copy, copied, onCopy, open, onOpen }: {
 export function Welcome() {
   const lang = useLang((s) => s.lang), setLang = useLang((s) => s.set);
   const [closing, setClosing] = useState(false);
-  const [copied, setCopied] = useState<"" | "tg" | "ds">("");
+  const [copied, setCopied] = useState<"" | "tg" | "ds" | "ch">("");
   const start = useRef<HTMLButtonElement>(null);
   const t = TEXT[lang];
   const timer = useRef(0);
@@ -98,7 +100,7 @@ export function Welcome() {
     const key = (event: KeyboardEvent) => { if (event.key === "Escape" && !useApp.getState().guide) { event.preventDefault(); event.stopPropagation(); close(); } };
     addEventListener("keydown", key, true); return () => removeEventListener("keydown", key, true);
   }, [closing]);
-  const copy = async (which: "tg" | "ds", text: string) => {
+  const copy = async (which: "tg" | "ds" | "ch", text: string) => {
     if (!(await copyText(text))) return;
     setCopied(which);
     clearTimeout(timer.current);
@@ -126,10 +128,12 @@ export function Welcome() {
       <section className="wl-feedback">
         <h2>{t.feedbackTitle}</h2>
         <p>{t.feedback}</p>
-        <Contact icon={<Plane />} name={t.telegram} handle={TELEGRAM.handle} open={t.open} onOpen={openTelegram}
+        <Contact icon={<Plane />} name={t.telegram} handle={TELEGRAM.handle} open={t.open} onOpen={() => openTelegram()}
           copy={copied === "tg" ? t.copied : t.copy} copied={copied === "tg"} onCopy={() => void copy("tg", TELEGRAM.handle)} />
         <Contact icon={<Bubble />} name={t.discord} handle={DISCORD.handle}
           copy={copied === "ds" ? t.copied : t.copy} copied={copied === "ds"} onCopy={() => void copy("ds", DISCORD.handle)} />
+        <Contact icon={<Megaphone />} name={t.channel} handle={CHANNEL.handle} open={t.open} onOpen={() => openTelegram(CHANNEL.url)}
+          copy={copied === "ch" ? t.copied : t.copy} copied={copied === "ch"} onCopy={() => void copy("ch", CHANNEL.handle)} />
       </section>
       </div>
 

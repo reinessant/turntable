@@ -2,15 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { audio } from "./audio";
 import { coverSrc, time } from "./PlayerScreen";
 import { asset } from "./library";
-import { albumProgress, nextTrack, pauseOrResume, previousTrack, seek, startAlbumNow } from "./player";
+import { albumProgress, cycleRepeat, nextTrack, pauseOrResume, previousTrack, seek, startAlbumNow, cycleShuffle } from "./player";
 import { useApp } from "./state";
-import { exitMini, hideToTray } from "./mini";
+import { MINI_SCALE, exitMini, hideToTray, setMiniScale } from "./mini";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { isTauri } from "@tauri-apps/api/core";
 import type { Album } from "./types";
 import { useScrub } from "./scrub";
 import { searchLibrary } from "./librarySearch";
 import { useSettings } from "./settings";
+import { count, t } from "./lang";
 import "./mini.css";
 
 /** "lucy bedroque - yes, you may prod catiobel" → "yes, you may" (credits go, an artist prefix goes) */
@@ -28,6 +29,8 @@ export function MiniPlayer({ preview = false }: { preview?: boolean }) {
   const duration = useApp((s) => s.duration);
   const phase = useApp((s) => s.phase);
   const volume = useApp((s) => s.volume);
+  const shuffle = useApp((s) => s.shuffle);
+  const repeat = useApp((s) => s.repeat);
   const lyrics = useApp((s) => s.lyrics);
   const album = albums.find((a) => a.id === activeId);
   const track = album?.tracks[trackIndex];
@@ -70,6 +73,13 @@ export function MiniPlayer({ preview = false }: { preview?: boolean }) {
     const key = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") { event.preventDefault(); setPicker(true); return; }
+      // Ctrl + / Ctrl − : bigger and smaller (Ctrl 0: back to normal)
+      if (event.ctrlKey && (event.code === "Equal" || event.code === "NumpadAdd" || event.code === "Minus" || event.code === "NumpadSubtract" || event.code === "Digit0")) {
+        event.preventDefault();
+        const now = useSettings.getState().miniScale;
+        void setMiniScale(event.code === "Digit0" ? 1 : now + (event.code === "Equal" || event.code === "NumpadAdd" ? MINI_SCALE.step : -MINI_SCALE.step));
+        return;
+      }
       if (event.code === "Space") { event.preventDefault(); if (album) pauseOrResume(); else setPicker(true); }
       if (event.key === "ArrowRight") nextTrack();
       if (event.key === "ArrowLeft") previousTrack();
@@ -79,12 +89,16 @@ export function MiniPlayer({ preview = false }: { preview?: boolean }) {
   }, [album?.id, preview]);
 
   return <div className={`cr shell-${shell} lcd-${lcd} tape-${tape}` + (playing ? " is-playing" : "") + (preview ? " cr-preview" : "")} data-tauri-drag-region={drag}
-    onWheel={(event) => { if (event.deltaY) nudgeVolume(-Math.sign(event.deltaY), event.shiftKey); }}>
+    onWheel={(event) => {
+      // Ctrl + wheel: the size of the recorder; the wheel alone: the volume
+      if (event.ctrlKey) { if (event.deltaY && !preview) void setMiniScale(useSettings.getState().miniScale - Math.sign(event.deltaY) * MINI_SCALE.step); return; }
+      if (event.deltaY) nudgeVolume(-Math.sign(event.deltaY), event.shiftKey);
+    }}>
     {/* speaker grille + top controls */}
     <div className="cr-top" data-tauri-drag-region={drag}>
       <div className="cr-grille" data-tauri-drag-region={drag} />
       {/* slide volume set into the grille: drag the knob, click the slot, or wheel anywhere (1%, Shift 5%) */}
-      <div className={"cr-volume" + (volumeDrag ? " dragging" : "")} title={`Volume ${Math.round(volume * 100)}%`}
+      <div className={"cr-volume" + (volumeDrag ? " dragging" : "")} title={`${t("Volume")} ${Math.round(volume * 100)}%`}
         onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); setVolumeDrag(true); volumeAt(event); }}
         onPointerMove={(event) => { if (volumeDrag) volumeAt(event); }}
         onPointerUp={() => setVolumeDrag(false)} onPointerCancel={() => setVolumeDrag(false)}>
@@ -93,28 +107,28 @@ export function MiniPlayer({ preview = false }: { preview?: boolean }) {
       </div>
       <div className="cr-badge" data-tauri-drag-region={drag}><span className="cr-logo">turntable</span><span className="cr-model">TT-1 · portable</span></div>
       <div className="cr-round">
-        <button className="cr-dot" title="Full player" aria-label="Full player" onClick={() => { if (!preview) void exitMini(); }}><svg viewBox="0 0 12 12"><path d="M2 5V2h3M10 7v3H7M2 2l3.2 3.2M10 10 6.8 6.8" /></svg></button>
-        <button className="cr-dot" title="Hide to tray" aria-label="Hide to tray" onClick={() => { if (!preview) void hideToTray(); }}><svg viewBox="0 0 12 12"><path d="M2.5 7.5 6 10l3.5-2.5M6 10V2" /></svg></button>
+        <button className="cr-dot" title={t("Full player")} aria-label={t("Full player")} onClick={() => { if (!preview) void exitMini(); }}><svg viewBox="0 0 12 12"><path d="M2 5V2h3M10 7v3H7M2 2l3.2 3.2M10 10 6.8 6.8" /></svg></button>
+        <button className="cr-dot" title={t("Hide to tray")} aria-label={t("Hide to tray")} onClick={() => { if (!preview) void hideToTray(); }}><svg viewBox="0 0 12 12"><path d="M2.5 7.5 6 10l3.5-2.5M6 10V2" /></svg></button>
       </div>
-      {isTauri() && !preview && <button className="cr-close" aria-label="Quit" title="Quit" onClick={() => void getCurrentWindow().close()}><svg viewBox="0 0 10 10"><path d="M2 2l6 6M8 2 2 8" /></svg></button>}
-      <div className="cr-leds"><i className={"led" + (playing ? " on" : "")} /><span>PLAY</span><i className={"led red" + (paused ? " on" : "")} /><span>PAUSE</span></div>
+      {isTauri() && !preview && <button className="cr-close" aria-label={t("Quit")} title={t("Quit")} onClick={() => void getCurrentWindow().close()}><svg viewBox="0 0 10 10"><path d="M2 2l6 6M8 2 2 8" /></svg></button>}
+      <div className="cr-leds"><i className={"led" + (playing ? " on" : "")} /><span>{t("PLAY")}</span><i className={"led red" + (paused ? " on" : "")} /><span>{t("PAUSE")}</span></div>
     </div>
 
     {/* the strip over the door: what's on the tape */}
     <div className="cr-lcd" data-tauri-drag-region={drag}>
-      {volumeShown ? <div className="cr-lcd-row"><span>VOLUME</span><span className={"cr-vol" + (volumeDrag ? " dragging" : "")}
+      {volumeShown ? <div className="cr-lcd-row"><span>{t("VOLUME")}</span><span className={"cr-vol" + (volumeDrag ? " dragging" : "")}
         onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); setVolumeDrag(true); volumeAt(event); }}
         onPointerMove={(event) => { if (volumeDrag) volumeAt(event); }}
         onPointerUp={() => setVolumeDrag(false)} onPointerCancel={() => setVolumeDrag(false)}>
         <i style={{ width: volume * 100 + "%" }} /></span><span>{Math.round(volume * 100)}</span></div>
         : <>
-          <div className="cr-lcd-row"><Marquee text={track ? `${String(trackIndex + 1).padStart(2, "0")} · ${cleanTitle(track.title)} — ${album!.artist}` : "no tape · press ⏏ to load an album"} />
+          <div className="cr-lcd-row"><Marquee text={track ? `${String(trackIndex + 1).padStart(2, "0")} · ${cleanTitle(track.title)} — ${track.artist ?? album!.artist}` : t("No tape · press ⏏ to load an album")} />
             <span className="cr-time">{track ? `${time(scrub.preview ?? position)} / ${time(duration)}` : "--:--"}</span></div>
           {line?.text ? <LyricLine text={line.text} start={line.time} end={lineEnd} position={position} />
             : <div className="cr-lyric dim"><span>{album?.title || " "}</span></div>}
         </>}
       {/* the tape position: click or drag to wind to a moment */}
-      <div className={"cr-seek" + (scrub.dragging ? " dragging" : "") + (track ? "" : " off")} {...scrub.handlers} title="Drag to wind the tape">
+      <div className={"cr-seek" + (scrub.dragging ? " dragging" : "") + (track ? "" : " off")} {...scrub.handlers} title={t("Drag to wind the tape")}>
         <span className="cr-seek-line"><i style={{ width: seekShown * 100 + "%" }} /></span><b style={{ left: seekShown * 100 + "%" }} />
       </div>
     </div>
@@ -122,21 +136,26 @@ export function MiniPlayer({ preview = false }: { preview?: boolean }) {
     {/* cassette door */}
     <div className="cr-door">
       {album ? <Cassette album={album} leftR={leftR} rightR={rightR} playing={playing} />
-        : <button className="cr-empty" onClick={() => setPicker(true)}>Load a tape</button>}
+        : <button className="cr-empty" onClick={() => setPicker(true)}>{t("Load a tape")}</button>}
       <div className="cr-glass" />
     </div>
 
     {/* piano keys */}
     <div className="cr-keys">
-      <Key label="Eject — load an album" glyph="eject" onPress={keys.eject} />
-      <Key label="Play" glyph="play" down={playing} onPress={keys.play} />
-      <Key label="Rewind — previous track" glyph="rew" onPress={keys.rew} />
-      <Key label="Fast forward — next track" glyph="ff" onPress={keys.ff} />
-      <Key label="Stop" glyph="stop" onPress={keys.stop} />
-      <Key label="Pause" glyph="pause" down={paused} onPress={keys.pause} />
+      <Key label={t("Eject — load an album")} glyph="eject" onPress={keys.eject} />
+      <Key label={t("Play")} glyph="play" down={playing} onPress={keys.play} />
+      <Key label={t("Rewind — previous track")} glyph="rew" onPress={keys.rew} />
+      <Key label={t("Fast forward — next track")} glyph="ff" onPress={keys.ff} />
+      <Key label={t("Stop")} glyph="stop" onPress={keys.stop} />
+      <Key label={t("Pause")} glyph="pause" down={paused} onPress={keys.pause} />
+      {/* latching switches: shuffle goes off → this album (ALB) → every track in the library (ALL); repeat loops the album, then one track */}
+      <Key label={shuffle === "off" ? t("Shuffle: off — press for this album") : shuffle === "album" ? t("Shuffle: this album — press for all albums") : t("Shuffle: all albums — press to turn off")}
+        glyph="shuffle" latched={shuffle !== "off"} badge={shuffle === "album" ? t("ALB") : shuffle === "all" ? t("ALL") : undefined} onPress={() => cycleShuffle()} />
+      <Key label={repeat === "off" ? t("Repeat: off") : repeat === "all" ? t("Repeat: loop") : t("Repeat: this track")} glyph={repeat === "one" ? "repeat-one" : "repeat"} latched={repeat !== "off"} onPress={() => cycleRepeat()} />
     </div>
 
     {picker && <TapePicker albums={albums} onClose={() => setPicker(false)} onPick={(a, index) => {
+      if (!a.tracks.length) { useApp.setState({ message: t("This record has no tracks to play — add some with Edit playlist.") }); return; }
       setPicker(false);
       useApp.setState({ screen: "player" });
       void startAlbumNow(a, .25, index);
@@ -162,17 +181,22 @@ function Cassette({ album, leftR, rightR, playing }: { album: Album; leftR: numb
   </div>;
 }
 
-function Key({ glyph, label, down = false, onPress }: { glyph: "eject" | "play" | "rew" | "ff" | "stop" | "pause"; label: string; down?: boolean; onPress: () => void }) {
+function Key({ glyph, label, down = false, latched = false, badge, onPress }: { glyph: "eject" | "play" | "rew" | "ff" | "stop" | "pause" | "shuffle" | "repeat" | "repeat-one"; label: string; down?: boolean; latched?: boolean; badge?: string; onPress: () => void }) {
   const [pressed, setPressed] = useState(false);
+  const line = glyph === "shuffle" || glyph === "repeat" || glyph === "repeat-one";
   const path = {
     eject: <><path d="M3 9h10L8 3.5z" /><rect x="3" y="11" width="10" height="1.8" rx=".4" /></>,
     play: <path d="M5 3.5v9l7.5-4.5z" />,
     rew: <><path d="M8 4v8L2.5 8zM14 4v8L8.5 8z" /></>,
     ff: <><path d="M2 4v8l5.5-4zM8 4v8l5.5-4z" /></>,
     stop: <rect x="4" y="4" width="8" height="8" rx=".6" />,
-    pause: <><rect x="4" y="3.5" width="2.8" height="9" rx=".5" /><rect x="9.2" y="3.5" width="2.8" height="9" rx=".5" /></>
+    pause: <><rect x="4" y="3.5" width="2.8" height="9" rx=".5" /><rect x="9.2" y="3.5" width="2.8" height="9" rx=".5" /></>,
+    shuffle: <><path d="M1.8 4.6h2.1c3.3 0 4.3 6.8 7.6 6.8h2.7M11.6 9.4l2.6 2-2.6 2" /><path d="M1.8 11.4h2.1c1 0 1.8-.7 2.5-1.8M8.5 6.6c.7-1.2 1.5-2 3-2h2.7M11.6 2.6l2.6 2-2.6 2" /></>,
+    repeat: <><path d="M3 7.2v-.4a2.3 2.3 0 0 1 2.3-2.3H13M11 2.5l2 2-2 2" /><path d="M13 8.8v.4a2.3 2.3 0 0 1-2.3 2.3H3M5 9.5l-2 2 2 2" /></>,
+    "repeat-one": <><path d="M3 7.2v-.4a2.3 2.3 0 0 1 2.3-2.3H13M11 2.5l2 2-2 2" /><path d="M13 8.8v.4a2.3 2.3 0 0 1-2.3 2.3H3M5 9.5l-2 2 2 2" /><path d="M7.2 7l1.1-.7v3.5" /></>
   }[glyph];
-  return <button className={"cr-key" + (down || pressed ? " down" : "") + (down ? " latched" : "")} aria-label={label} title={label}
+  const on = down || latched;
+  return <button className={"cr-key" + (line ? " line" : "") + (on || pressed ? " down" : "") + (on ? " latched" : "")} aria-label={label} aria-pressed={line ? latched : undefined} title={label} data-badge={badge}
     onPointerDown={() => setPressed(true)} onPointerUp={() => setPressed(false)} onPointerLeave={() => setPressed(false)}
     onClick={onPress}><svg viewBox="0 0 16 16">{path}</svg></button>;
 }
@@ -223,7 +247,7 @@ function TapePicker({ albums, onClose, onPick }: { albums: Album[]; onClose: () 
   const list = useRef<HTMLDivElement>(null);
   const results = useMemo(() => {
     type Row = { album: Album; index: number; kind: "album" | "track"; title: string; sub: string };
-    const albumRow = (a: Album): Row => ({ album: a, index: 0, kind: "album", title: a.title, sub: `${a.artist} · ${a.tracks.length} tracks` });
+    const albumRow = (a: Album): Row => ({ album: a, index: 0, kind: "album", title: a.title, sub: `${a.artist} · ${count(a.tracks.length, "track")}` });
     if (!query.trim()) return albums.slice(0, 60).map(albumRow);
     // the same forgiving search as the full screen (layout, accents, word order); an artist lists their tapes
     const found = searchLibrary(albums, query, { albums: 20, artists: 6, tracks: 30 });
@@ -246,15 +270,15 @@ function TapePicker({ albums, onClose, onPick }: { albums: Album[]; onClose: () 
   }}>
     <div className="cr-search">
       <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" /></svg>
-      <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search albums, artists, tracks" spellCheck={false} />
-      <button aria-label="Close" onClick={onClose}><svg viewBox="0 0 10 10"><path d="M2 2l6 6M8 2 2 8" /></svg></button>
+      <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Search albums, artists, tracks")} spellCheck={false} />
+      <button aria-label={t("Close")} onClick={onClose}><svg viewBox="0 0 10 10"><path d="M2 2l6 6M8 2 2 8" /></svg></button>
     </div>
     <div className="cr-results" ref={list}>
       {results.map((r, i) => <button key={r.album.id + "-" + r.kind + "-" + r.index} className={"cr-result" + (i === cursor ? " on" : "")} onMouseEnter={() => setCursor(i)} onClick={() => onPick(r.album, r.index)}>
         <img src={r.album.coverThumbPath ? (r.album.coverThumbPath.startsWith("data:") ? r.album.coverThumbPath : asset(r.album.coverThumbPath)) : coverSrc(r.album)} alt="" />
-        <span className="t"><b>{r.title}</b><span>{r.kind === "track" ? "Track · " : ""}{r.sub}</span></span>
+        <span className="t"><b>{r.title}</b><span>{r.kind === "track" ? t("Track") + " · " : ""}{r.sub}</span></span>
       </button>)}
-      {!results.length && <p className="cr-none">Nothing on the shelf matches “{query}”</p>}
+      {!results.length && <p className="cr-none">{t("Nothing on the shelf matches")} “{query}”</p>}
     </div>
   </div>;
 }

@@ -7,12 +7,14 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { audio } from "./audio";
 import { enterMini, exitMini } from "./mini";
 import { coverSrc } from "./PlayerScreen";
-import { nextTrack, pauseOrResume, previousTrack, seek } from "./player";
+import { cycleRepeat, nextTrack, pauseOrResume, previousTrack, seek, toggleShuffleAll } from "./player";
 import { useApp } from "./state";
+import type { RepeatMode, ShuffleMode } from "./types";
 
 export interface NowPlaying {
   album: string; artist: string; track: string; cover: string; index: number; count: number;
   playing: boolean; position: number; duration: number; volume: number; mini: boolean; loaded: boolean;
+  shuffle: ShuffleMode; repeat: RepeatMode;
   /** the album's colour, for the menu's "album colour" theme (null: none, or a colourless cover) */
   hue: number | null;
 }
@@ -23,9 +25,9 @@ export function nowPlaying(): NowPlaying {
   const album = s.albums.find((a) => a.id === s.activeAlbumId);
   const track = album?.tracks[s.trackIndex];
   return {
-    album: album?.title ?? "", artist: album?.artist ?? "", track: track?.title ?? "", cover: album ? coverSrc(album) : "",
+    album: album?.title ?? "", artist: track?.artist ?? album?.artist ?? "", track: track?.title ?? "", cover: album ? coverSrc(album) : "",
     index: s.trackIndex, count: album?.tracks.length ?? 0, playing: s.phase === "PLAYING", position: s.position,
-    duration: s.duration, volume: s.volume, mini: s.mini, loaded: !!album,
+    duration: s.duration, volume: s.volume, mini: s.mini, loaded: !!album, shuffle: s.shuffle, repeat: s.repeat,
     hue: album && album.colors.cMean >= .05 ? album.colors.hDominant : null
   };
 }
@@ -40,6 +42,9 @@ export function handleRemote(action: string): void {
   if (action === "play-pause") { if (s.activeAlbumId) pauseOrResume(); }
   else if (action === "next") nextTrack();
   else if (action === "prev") previousTrack();
+  // the tray and the mini player shuffle the whole library; the full player shuffles the record on the deck
+  else if (action === "shuffle-all") toggleShuffleAll();
+  else if (action === "repeat") cycleRepeat();
   else if (action === "vol-up") audio.setVolume(clamp(s.volume + .05));
   else if (action === "vol-down") audio.setVolume(clamp(s.volume - .05));
   else if (action.startsWith("vol:")) audio.setVolume(clamp(Number(action.slice(4))));

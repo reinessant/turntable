@@ -45,13 +45,28 @@ fn app_running() -> bool {
         .unwrap_or(false)
 }
 
+/// The version of the Turntable that is installed now: the NSIS setup writes it to the per-user uninstall entry.
+fn installed_version() -> Option<String> {
+    let out = quiet("reg").args(["query", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Turntable", "/v", "DisplayVersion"]).output().ok()?;
+    if !out.status.success() { return None; }
+    String::from_utf8_lossy(&out.stdout).lines()
+        .find(|line| line.contains("DisplayVersion"))
+        .and_then(|line| line.split_whitespace().last())
+        .map(str::to_string)
+}
+
+/// `version`: what this setup installs; `installed_version`: what is on the machine now (None: unknown or no
+/// entry). The window says "Update" for an older one, "Reinstall" for the same version.
 #[derive(serde::Serialize)]
-struct Status { installed: bool, running: bool, dir: String }
+struct Status { installed: bool, running: bool, dir: String, version: String, installed_version: Option<String> }
 
 #[tauri::command]
 fn status() -> Status {
     let dir = install_dir();
-    Status { installed: dir.join("turntable.exe").exists(), running: app_running(), dir: dir.to_string_lossy().into() }
+    Status {
+        installed: dir.join("turntable.exe").exists(), running: app_running(), dir: dir.to_string_lossy().into(),
+        version: env!("CARGO_PKG_VERSION").into(), installed_version: installed_version(),
+    }
 }
 
 #[tauri::command]

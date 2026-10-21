@@ -1,6 +1,8 @@
 // no console window behind the app in release builds
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod decode;
+
 use std::{collections::HashMap, fs, path::{Path, PathBuf}, sync::{atomic::{AtomicBool, Ordering}, Mutex}};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager, State};
@@ -31,6 +33,9 @@ struct Album {
     tracks: Vec<Track>,
     added_at: u64,
     liked: bool,
+    /// up to three genre tags (albums imported before genres existed have none)
+    #[serde(default)]
+    genres: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -56,6 +61,8 @@ struct SaveRequest {
     cover_bytes: Option<Vec<u8>>,
     thumb_bytes: Option<Vec<u8>>,
     existing_cover: Option<String>,
+    #[serde(default)]
+    genres: Vec<String>,
 }
 
 fn collection_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -89,6 +96,28 @@ fn allow_import_path(app: tauri::AppHandle, path: String) -> Result<(), String> 
         app.fs_scope().allow_file(&path).map_err(|e| e.to_string())?;
     } else { return Err("Path is not a file or folder".into()); }
     Ok(())
+}
+
+/// The whole file decoded here instead of in the webview: 12 bytes (sample rate, channels, frames — u32 LE)
+/// and then interleaved 16-bit samples.
+#[tauri::command]
+async fn decode_audio(path: String) -> Result<tauri::ipc::Response, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let pcm = decode::decode(&path)?;
+        let frames = (pcm.samples.len() / pcm.channels as usize) as u32;
+        let mut out = Vec::with_capacity(12 + pcm.samples.len() * 2);
+        out.extend_from_slice(&pcm.rate.to_le_bytes());
+        out.extend_from_slice(&(pcm.channels as u32).to_le_bytes());
+        out.extend_from_slice(&frames.to_le_bytes());
+        for sample in &pcm.samples { out.extend_from_slice(&sample.to_le_bytes()); }
+        Ok(tauri::ipc::Response::new(out))
+    }).await.map_err(|e| e.to_string())?
+}
+
+/// Length and tags of a file the page's own parser could not read.
+#[tauri::command]
+async fn probe_audio(path: String) -> Result<decode::Info, String> {
+    tauri::async_runtime::spawn_blocking(move || decode::probe(&path)).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -145,7 +174,7 @@ fn save_album(app: tauri::AppHandle, cancel: State<'_, AtomicBool>, request: Sav
         if let Some(bytes) = &request.thumb_bytes { fs::write(&thumb, bytes).map_err(|e| e.to_string())?; }
         else if let Some(path) = &request.existing_cover { fs::copy(path, &thumb).map_err(|e| e.to_string())?; }
         fs::rename(&staging, &final_dir).map_err(|e| e.to_string())?;
-        let album = Album { id: request.id.clone(), title: request.title.trim().into(), artist: request.artist.trim().into(), year: request.year, cover_path: if cover.exists() || final_dir.join("cover.jpg").exists() { final_dir.join("cover.jpg").to_string_lossy().to_string() } else { String::new() }, cover_thumb_path: if final_dir.join("cover-thumb.jpg").exists() { final_dir.join("cover-thumb.jpg").to_string_lossy().to_string() } else { String::new() }, colors: request.colors.clone(), tracks, added_at, liked };
+        let album = Album { id: request.id.clone(), title: request.title.trim().into(), artist: request.artist.trim().into(), year: request.year, cover_path: if cover.exists() || final_dir.join("cover.jpg").exists() { final_dir.join("cover.jpg").to_string_lossy().to_string() } else { String::new() }, cover_thumb_path: if final_dir.join("cover-thumb.jpg").exists() { final_dir.join("cover-thumb.jpg").to_string_lossy().to_string() } else { String::new() }, colors: request.colors.clone(), tracks, added_at, liked, genres: clean_genres(&request.genres) };
         let old = existing.map(|i| albums.remove(i));
         albums.push(album.clone());
         if let Err(e) = write_collection(&app, &albums) {
@@ -161,6 +190,27 @@ fn save_album(app: tauri::AppHandle, cancel: State<'_, AtomicBool>, request: Sav
     })();
     if result.is_err() { let _ = fs::remove_dir_all(&staging); }
     result
+}
+
+/// At most three tags, trimmed, without repeats.
+fn clean_genres(genres: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for genre in genres {
+        let genre = genre.trim();
+        if genre.is_empty() || out.iter().any(|g| g.eq_ignore_ascii_case(genre)) { continue; }
+        out.push(genre.chars().take(32).collect());
+        if out.len() == 3 { break; }
+    }
+    out
+}
+
+#[tauri::command]
+fn set_album_genres(app: tauri::AppHandle, id: String, genres: Vec<String>) -> Result<Vec<Album>, String> {
+    let mut albums = read_collection(&app)?;
+    let album = albums.iter_mut().find(|a| a.id == id).ok_or("Album not found")?;
+    album.genres = clean_genres(&genres);
+    write_collection(&app, &albums)?;
+    Ok(albums)
 }
 
 fn managed_album_dir(album: &Album, base: &Path) -> Option<PathBuf> {
@@ -261,11 +311,11 @@ fn open_soundcloud(url: String) -> Result<(), String> {
     std::process::Command::new("rundll32").args(["url.dll,FileProtocolHandler", &url]).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
-/// Opens the author's Telegram (the welcome screen's contact button) in the default app or browser.
-/// Only this one address is allowed, like `open_soundcloud` above.
+/// Opens the author's Telegram or the Telegram channel (the welcome screen's and the corner buttons) in the default
+/// app or browser. Only these two addresses are allowed, like `open_soundcloud` above.
 #[tauri::command]
 fn open_contact(url: String) -> Result<(), String> {
-    if url != "https://t.me/openwoundsdotcom" { return Err("Not a known contact link".into()); }
+    if !["https://t.me/openwoundsdotcom", "https://t.me/turntabletg"].contains(&url.as_str()) { return Err("Not a known contact link".into()); }
     std::process::Command::new("rundll32").args(["url.dll,FileProtocolHandler", &url]).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
@@ -518,7 +568,7 @@ fn main() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![load_albums, allow_import_path, save_album, cancel_import, delete_album, set_album_liked, set_track_lyrics, sc_login, open_soundcloud, open_contact, set_window_round, quit_app, set_hotkeys, set_close_to_tray, launch_hidden, get_autostart, set_autostart, open_library_folder])
+        .invoke_handler(tauri::generate_handler![load_albums, allow_import_path, decode_audio, probe_audio, save_album, cancel_import, delete_album, set_album_liked, set_album_genres, set_track_lyrics, sc_login, open_soundcloud, open_contact, set_window_round, quit_app, set_hotkeys, set_close_to_tray, launch_hidden, get_autostart, set_autostart, open_library_folder])
         .run(tauri::generate_context!())
         .expect("Turntable failed to start");
 }

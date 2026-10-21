@@ -1,5 +1,6 @@
 import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
+import { t } from "./lang";
 interface Props { children: ReactNode; name?: string }
 interface State { error: Error | null }
 export class ErrorBoundary extends Component<Props, State> {
@@ -10,9 +11,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
   render(): ReactNode {
     if (this.state.error) return <div className="error-screen" role="alert">
-      <strong>{this.props.name || "App"} failed to render</strong>
+      <strong>{this.props.name || "App"}: {t("failed to render")}</strong>
       <pre>{this.state.error.message}</pre>
-      <button onClick={() => { this.setState({ error: null }); location.reload(); }}>Reload</button>
+      <button onClick={() => { this.setState({ error: null }); location.reload(); }}>{t("Reload")}</button>
     </div>;
     return this.props.children;
   }

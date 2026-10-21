@@ -4,6 +4,7 @@ import { coverSrc, Icon } from "./PlayerScreen";
 import { matchRange, searchLibrary } from "./librarySearch";
 import type { Hit } from "./librarySearch";
 import { useApp } from "./state";
+import { count, t } from "./lang";
 import type { Album } from "./types";
 
 /* Search the whole library (Ctrl+K, /, or the magnifier): albums, artists and tracks as you type, the best
@@ -11,7 +12,7 @@ import type { Album } from "./types";
 
 const thumb = (album: Album) => album.coverThumbPath ? (album.coverThumbPath.startsWith("data:") ? album.coverThumbPath : asset(album.coverThumbPath)) : coverSrc(album);
 const clock = (s: number) => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
-const plural = (n: number, one: string) => n + " " + one + (n === 1 ? "" : "s");
+const plural = (n: number, one: string) => count(n, one);
 
 function Marked({ text, query }: { text: string; query: string }) {
   const range = matchRange(text, query);
@@ -48,7 +49,7 @@ export function Search({ onPlay, onShow }: { onPlay: (album: Album, index: numbe
   };
   let n = -1;
   return <div className={"sr-layer" + (closing ? " closing" : "")} onPointerDown={(event) => { if (event.target === event.currentTarget) close(); }}>
-    <div className="sr-panel" role="dialog" aria-label="Search the library" onKeyDown={(event) => {
+    <div className="sr-panel" role="dialog" aria-label={t("Search the library")} onKeyDown={(event) => {
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); }
       if (event.key === "ArrowDown") { event.preventDefault(); setCursor((c) => Math.min(flat.length - 1, c + 1)); }
       if (event.key === "ArrowUp") { event.preventDefault(); setCursor((c) => Math.max(0, c - 1)); }
@@ -57,12 +58,12 @@ export function Search({ onPlay, onShow }: { onPlay: (album: Album, index: numbe
     }}>
       <div className="sr-field">
         <Icon name="magnifying-glass" size={20} />
-        <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Albums, artists, tracks" spellCheck={false} aria-label="Search" />
-        {query ? <button className="sr-x" aria-label="Clear" onClick={() => setQuery("")}><Icon name="x" size={14} /></button> : <kbd>Esc</kbd>}
+        <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Albums, artists, tracks, genres")} spellCheck={false} aria-label={t("Search")} />
+        {query ? <button className="sr-x" aria-label={t("Clear")} onClick={() => setQuery("")}><Icon name="x" size={14} /></button> : <kbd>Esc</kbd>}
       </div>
       <div className="sr-list" ref={list}>
         {groups.map((group) => group.hits.length > 0 && <div className="sr-group" key={group.title}>
-          <div className="sr-title">{group.title}</div>
+          <div className="sr-title">{t(group.title)}</div>
           {group.hits.map((hit) => {
             const i = ++n, on = i === cursor, top = group.title === "Top result";
             const key = hit.kind === "artist" ? "ar-" + hit.artist : hit.kind === "track" ? "tr-" + hit.album.id + hit.index : "al-" + hit.album.id;
@@ -71,19 +72,19 @@ export function Search({ onPlay, onShow }: { onPlay: (album: Album, index: numbe
                 ? <span className="sr-stack">{hit.albums.slice(0, 3).map((a) => <img key={a.id} src={thumb(a)} alt="" />)}</span>
                 : <span className={"sr-art" + (hit.kind === "track" ? " small" : "")}><img src={thumb(hit.album)} alt="" />{hit.kind === "album" && <i className="sr-disc" />}</span>}
               <span className="sr-text">
-                {hit.kind === "album" && <><b><Marked text={hit.album.title} query={query} /></b><span><Marked text={hit.album.artist} query={query} /> · {hit.album.year ? hit.album.year + " · " : ""}{plural(hit.album.tracks.length, "track")}</span></>}
-                {hit.kind === "artist" && <><b><Marked text={hit.artist} query={query} /></b><span>Artist · {plural(hit.albums.length, "album")}</span></>}
+                {hit.kind === "album" && <><b><Marked text={hit.album.title} query={query} /></b><span><Marked text={hit.album.artist} query={query} /> · {hit.album.year ? hit.album.year + " · " : ""}{plural(hit.album.tracks.length, "track")}{hit.album.genres?.length ? " · " : ""}{hit.album.genres?.map((genre, i) => <span key={genre} className="sr-genre">{i ? ", " : ""}<Marked text={genre} query={query} /></span>)}</span></>}
+                {hit.kind === "artist" && <><b><Marked text={hit.artist} query={query} /></b><span>{t("Artist")} · {plural(hit.albums.length, "album")}</span></>}
                 {hit.kind === "track" && <><b><Marked text={hit.track.title} query={query} /></b><span>{hit.album.title} · {hit.album.artist}</span></>}
               </span>
               {hit.kind === "track" && <span className="sr-meta mono">{String(hit.index + 1).padStart(2, "0")} · {clock(hit.track.duration)}</span>}
-              <span className="sr-go">{hit.kind === "artist" && hit.albums.length > 1 ? "Show" : <><Icon name="play-fill" size={11} />Play</>}</span>
+              <span className="sr-go">{hit.kind === "artist" && hit.albums.length > 1 ? t("Show") : <><Icon name="play-fill" size={11} />{t("Play")}</>}</span>
             </button>;
           })}
         </div>)}
-        {query.trim() && !flat.length && <div className="sr-none"><b>Nothing on the shelf matches “{query.trim()}”</b><span>Try part of a title, an artist, or a track name</span></div>}
-        {!albums.length && <div className="sr-none"><b>The crate is empty</b><span>Import an album first — then everything in it is searchable</span></div>}
+        {query.trim() && !flat.length && <div className="sr-none"><b>{t("Nothing on the shelf matches")} “{query.trim()}”</b><span>{t("Try part of a title, an artist, or a track name")}</span></div>}
+        {!albums.length && <div className="sr-none"><b>{t("The crate is empty")}</b><span>{t("Import an album first — then everything in it is searchable")}</span></div>}
       </div>
-      <div className="sr-foot"><span><kbd>↑</kbd><kbd>↓</kbd> choose</span><span><kbd>Enter</kbd> play</span><span><kbd>Shift</kbd><kbd>Enter</kbd> show in crate</span><span><kbd>Esc</kbd> close</span></div>
+      <div className="sr-foot"><span><kbd>↑</kbd><kbd>↓</kbd> {t("Choose")}</span><span><kbd>Enter</kbd> {t("Play")}</span><span><kbd>Shift</kbd><kbd>Enter</kbd> {t("Show in crate")}</span><span><kbd>Esc</kbd> {t("Close")}</span></div>
     </div>
   </div>;
 }

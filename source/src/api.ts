@@ -48,7 +48,9 @@ const MISS_TTL = 3 * 24 * 3600 * 1000;
 let disk: Promise<Awaited<ReturnType<typeof load>> | null> | null = null;
 const lyricsStore = () => disk ??= isTauri() ? load("lyrics.json", { autoSave: 2000 }).catch(() => null) : Promise.resolve(null);
 
-export async function fetchLyrics(track: Track, album: Album): Promise<Lyrics> {
+export async function fetchLyrics(track: Track, listed: Album): Promise<Lyrics> {
+  // a playlist track asks for lyrics as the track of its own album (its artist and record, and the same cache entry)
+  const album = { id: track.sourceAlbumId ?? listed.id, artist: track.artist ?? listed.artist, title: track.albumTitle ?? listed.title };
   const key = album.id + "/" + track.id;
   const kept = cache.get(key);
   if (kept) return kept;

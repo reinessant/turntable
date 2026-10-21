@@ -4,6 +4,7 @@ import { scAddPlaylist, scAddTracks, scLikes, scPlaylists, scResolve } from "./s
 import type { ScPlaylistRow, ScTrackRow } from "./soundcloud";
 import { ScLogo } from "./ScParts";
 import { Icon, time } from "./PlayerScreen";
+import { count, t } from "./lang";
 
 type Tab = "link" | "playlists" | "likes";
 type Resolved = Awaited<ReturnType<typeof scResolve>>;
@@ -25,7 +26,7 @@ export function ScSheet() {
     setBusy(what); setError("");
     try { await job(); } catch (e) { setError(errorText(e)); } finally { setBusy(null); }
   };
-  const added = (title: string) => useApp.setState({ message: `“${title}” is in the crate` });
+  const added = (title: string) => useApp.setState({ message: `“${title}” ${t("is in the crate")}` });
 
   // ---- link
   const [link, setLink] = useState("");
@@ -42,77 +43,77 @@ export function ScSheet() {
   const [name, setName] = useState("Likes");
   const [filter, setFilter] = useState("");
   useEffect(() => { if (tab === "likes" && !likes) void run("load", async () => setLikes(await scLikes())); }, [tab]);
-  const shown = (likes ?? []).filter((t) => !filter || (t.title + " " + t.artist).toLowerCase().includes(filter.toLowerCase()));
+  const shown = (likes ?? []).filter((row) => !filter || (row.title + " " + row.artist).toLowerCase().includes(filter.toLowerCase()));
   const toggle = (id: number) => setPicked((set) => { const next = new Set(set); if (next.has(id)) next.delete(id); else next.add(id); return next; });
 
   const addPlaylist = (p: ScPlaylistRow) => run("pl-" + p.id, async () => { const album = await scAddPlaylist(p.id); addRemoteAlbum(album); added(album.title); });
   const addTracks = (title: string, rows: ScTrackRow[]) => run("tracks", async () => { const album = await scAddTracks(title, rows); addRemoteAlbum(album); added(album.title); setPicked(new Set()); });
 
   return <div className="sc-sheet-backdrop" onPointerDown={(event) => { if (event.target === event.currentTarget) close(); }}>
-    <div className="sc-sheet" role="dialog" aria-label="Add from SoundCloud">
+    <div className="sc-sheet" role="dialog" aria-label={t("Add from SoundCloud")}>
       <header>
-        <div className="sc-title"><ScLogo size={10} /><h2>Add from SoundCloud</h2></div>
+        <div className="sc-title"><ScLogo size={10} /><h2>{t("Add from SoundCloud")}</h2></div>
         <nav className="sc-tabs" role="tablist">
           {(["link", "playlists", "likes"] as Tab[]).map((id) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => { setTab(id); setError(""); }}>
-            {id === "link" ? "Link" : id === "playlists" ? "Playlists & albums" : "Likes"}</button>)}
+            {id === "link" ? t("Link") : id === "playlists" ? t("Playlists & albums") : t("Likes")}</button>)}
         </nav>
-        <button className="icon-btn" aria-label="Close" onClick={close}><Icon name="x" /></button>
+        <button className="icon-btn" aria-label={t("Close")} onClick={close}><Icon name="x" /></button>
       </header>
 
       {tab === "link" && <section className="sc-body">
         <form className="sc-link" onSubmit={(event) => { event.preventDefault(); if (link.trim()) void resolve(); }}>
-          <input autoFocus value={link} onChange={(event) => setLink(event.target.value)} placeholder="Paste a soundcloud.com link — track, album or playlist" />
-          <button className="pill-btn solid" disabled={!link.trim() || busy === "resolve"}>{busy === "resolve" ? "Looking…" : "Find"}</button>
+          <input autoFocus value={link} onChange={(event) => setLink(event.target.value)} placeholder={t("Paste a soundcloud.com link — track, album or playlist")} />
+          <button className="pill-btn solid" disabled={!link.trim() || busy === "resolve"}>{busy === "resolve" ? t("Looking…") : t("Find")}</button>
         </form>
         {resolved?.kind === "set" && <div className="sc-preview">
           <Art src={resolved.playlist.artwork} big />
           <div className="sc-preview-text">
-            <span className="mono">{resolved.playlist.kind === "album" ? "Album" : "Playlist"} · {resolved.playlist.count} tracks</span>
+            <span className="mono">{resolved.playlist.kind === "album" ? t("Album") : t("Playlist")} · {count(resolved.playlist.count, "track")}</span>
             <h3>{resolved.playlist.title}</h3><span className="sub">{resolved.playlist.owner}</span>
-            <ol>{resolved.tracks.slice(0, 6).map((t) => <li key={t.id} className={t.playable ? "" : "off"}>{t.title}<span className="mono">{time(t.duration)}</span></li>)}
-              {resolved.tracks.length > 6 && <li className="more">+ {resolved.tracks.length - 6} more</li>}</ol>
+            <ol>{resolved.tracks.slice(0, 6).map((row) => <li key={row.id} className={row.playable ? "" : "off"}>{row.title}<span className="mono">{time(row.duration)}</span></li>)}
+              {resolved.tracks.length > 6 && <li className="more">+ {resolved.tracks.length - 6} {t("more")}</li>}</ol>
           </div>
           <AddButton done={inCrate.has("sc-pl-" + resolved.playlist.id)} busy={busy === "pl-" + resolved.playlist.id} onClick={() => void addPlaylist(resolved.playlist)} />
         </div>}
         {resolved?.kind === "track" && <div className="sc-preview">
           <Art src={resolved.track.artwork} big />
-          <div className="sc-preview-text"><span className="mono">Track · {time(resolved.track.duration)}</span><h3>{resolved.track.title}</h3><span className="sub">{resolved.track.artist}</span>
-            {!resolved.track.playable && <p className="warn">This track can only be played on SoundCloud.</p>}</div>
-          <AddButton done={inCrate.has("sc-mix-" + resolved.track.id)} busy={busy === "tracks"} disabled={!resolved.track.playable} label="Add as a single" onClick={() => void addTracks(resolved.track.title, [resolved.track])} />
+          <div className="sc-preview-text"><span className="mono">{t("Track")} · {time(resolved.track.duration)}</span><h3>{resolved.track.title}</h3><span className="sub">{resolved.track.artist}</span>
+            {!resolved.track.playable && <p className="warn">{t("This track can only be played on SoundCloud.")}</p>}</div>
+          <AddButton done={inCrate.has("sc-mix-" + resolved.track.id)} busy={busy === "tracks"} disabled={!resolved.track.playable} label={t("Add as a single")} onClick={() => void addTracks(resolved.track.title, [resolved.track])} />
         </div>}
-        {!resolved && !error && <p className="sc-hint">A playlist or an album becomes one record. A single track becomes a 7″ of its own.</p>}
+        {!resolved && !error && <p className="sc-hint">{t("A playlist or an album becomes one record. A single track becomes a 7″ of its own.")}</p>}
       </section>}
 
       {tab === "playlists" && <section className="sc-body"><div className="sc-list">
-        {busy === "load" && <p className="sc-hint">Loading your playlists…</p>}
-        {playlists?.length === 0 && <p className="sc-hint">No playlists or albums on this account yet.</p>}
+        {busy === "load" && <p className="sc-hint">{t("Loading your playlists…")}</p>}
+        {playlists?.length === 0 && <p className="sc-hint">{t("No playlists or albums on this account yet.")}</p>}
         {playlists?.map((p) => <div className="sc-row" key={p.id}>
           <Art src={p.artwork} />
-          <div className="sc-row-text"><b>{p.title}</b><span>{p.owner} · {p.count} {p.count === 1 ? "track" : "tracks"}{p.kind === "album" ? " · album" : ""}</span></div>
+          <div className="sc-row-text"><b>{p.title}</b><span>{p.owner} · {count(p.count, "track")}{p.kind === "album" ? " · " + t("album") : ""}</span></div>
           <AddButton done={inCrate.has("sc-pl-" + p.id)} busy={busy === "pl-" + p.id} onClick={() => void addPlaylist(p)} />
         </div>)}
       </div></section>}
 
       {tab === "likes" && <section className="sc-body sc-likes">
         <div className="sc-likes-bar">
-          <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter likes" />
-          <button className="pill-btn" onClick={() => setPicked(new Set(shown.filter((t) => t.playable).map((t) => t.id)))}>Select all</button>
-          {picked.size > 0 && <button className="pill-btn" onClick={() => setPicked(new Set())}>Clear</button>}
+          <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={t("Filter likes")} />
+          <button className="pill-btn" onClick={() => setPicked(new Set(shown.filter((t) => t.playable).map((t) => t.id)))}>{t("Select all")}</button>
+          {picked.size > 0 && <button className="pill-btn" onClick={() => setPicked(new Set())}>{t("Clear")}</button>}
         </div>
         <div className="sc-list">
-          {busy === "load" && <p className="sc-hint">Loading your likes…</p>}
-          {shown.map((t) => <label className={"sc-row pick" + (t.playable ? "" : " off") + (picked.has(t.id) ? " on" : "")} key={t.id}>
-            <input type="checkbox" disabled={!t.playable} checked={picked.has(t.id)} onChange={() => toggle(t.id)} />
-            <Art src={t.artwork} />
-            <div className="sc-row-text"><b>{t.title}</b><span>{t.artist}{t.playable ? "" : " · SoundCloud only"}</span></div>
-            <span className="mono">{time(t.duration)}</span>
+          {busy === "load" && <p className="sc-hint">{t("Loading your likes…")}</p>}
+          {shown.map((row) => <label className={"sc-row pick" + (row.playable ? "" : " off") + (picked.has(row.id) ? " on" : "")} key={row.id}>
+            <input type="checkbox" disabled={!row.playable} checked={picked.has(row.id)} onChange={() => toggle(row.id)} />
+            <Art src={row.artwork} />
+            <div className="sc-row-text"><b>{row.title}</b><span>{row.artist}{row.playable ? "" : " · " + t("SoundCloud only")}</span></div>
+            <span className="mono">{time(row.duration)}</span>
           </label>)}
         </div>
         <footer className="sc-likes-foot">
-          <input value={name} onChange={(event) => setName(event.target.value)} aria-label="Record title" placeholder="Record title" />
+          <input value={name} onChange={(event) => setName(event.target.value)} aria-label={t("Record title")} placeholder={t("Record title")} />
           <button className="pill-btn solid" disabled={!picked.size || busy === "tracks"}
-            onClick={() => void addTracks(name, (likes ?? []).filter((t) => picked.has(t.id)))}>
-            {busy === "tracks" ? "Pressing…" : picked.size ? `Add ${picked.size} ${picked.size === 1 ? "track" : "tracks"} as a record` : "Pick tracks to press a record"}</button>
+            onClick={() => void addTracks(name, (likes ?? []).filter((row) => picked.has(row.id)))}>
+            {busy === "tracks" ? t("Pressing…") : picked.size ? `${t("Add")} ${count(picked.size, "track")} ${t("as a record")}` : t("Pick tracks to press a record")}</button>
         </footer>
       </section>}
 
@@ -124,7 +125,7 @@ export function ScSheet() {
 function Art({ src, big = false }: { src: string; big?: boolean }) {
   return src ? <img className={"sc-art" + (big ? " big" : "")} src={src} alt="" /> : <span className={"sc-art empty" + (big ? " big" : "")}><ScLogo size={big ? 14 : 7} /></span>;
 }
-function AddButton({ done, busy, disabled, label = "Add to crate", onClick }: { done: boolean; busy: boolean; disabled?: boolean; label?: string; onClick: () => void }) {
+function AddButton({ done, busy, disabled, label = t("Add to crate"), onClick }: { done: boolean; busy: boolean; disabled?: boolean; label?: string; onClick: () => void }) {
   return <button className={"pill-btn" + (done ? " done" : " solid")} disabled={busy || disabled} onClick={onClick}>
-    {busy ? "Adding…" : done ? <><Icon name="check" size={13} />In the crate</> : <><Icon name="plus" size={13} />{label}</>}</button>;
+    {busy ? t("Adding…") : done ? <><Icon name="check" size={13} />{t("In the crate")}</> : <><Icon name="plus" size={13} />{label}</>}</button>;
 }

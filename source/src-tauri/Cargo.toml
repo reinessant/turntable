@@ -1,10 +1,8 @@
 [package]
 name = "turntable"
-version = "0.1.0"
+version = "0.1.2"
 description = "A tactile local album player"
-authors = ["reinessant"]
-license = "MIT"
-repository = "https://github.com/reinessant/turntable"
+authors = ["Turntable"]
 edition = "2021"
 
 [build-dependencies]
@@ -20,6 +18,20 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# our own decoder for what the webview cannot play (no AAC/MP3 codec on some Windows installs, odd m4a)
+symphonia = { version = "0.5", default-features = false, features = ["mp3", "aac", "isomp4", "alac", "flac", "vorbis", "ogg", "wav", "pcm"] }
+
+# decoding a whole album in an unoptimised dev build is painfully slow
+[profile.dev.package.symphonia]
+opt-level = 3
+[profile.dev.package.symphonia-core]
+opt-level = 3
+[profile.dev.package.symphonia-bundle-mp3]
+opt-level = 3
+[profile.dev.package.symphonia-codec-aac]
+opt-level = 3
+[profile.dev.package.symphonia-codec-alac]
+opt-level = 3
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Registry"] }

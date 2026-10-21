@@ -5,6 +5,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { load } from "@tauri-apps/plugin-store";
 import { create } from "zustand";
 import { useApp } from "./state";
+import type { RepeatMode, ShuffleMode } from "./types";
 
 export type Finish = "graphite" | "piano" | "alu" | "ivory" | "walnut" | "oxblood" | "navy" | "sage" | "rose";
 export type Vinyl = "black" | "smoke" | "oxblood" | "cobalt" | "emerald" | "amber" | "bone";
@@ -46,7 +47,7 @@ export const LCDS: { id: Lcd; name: string; swatch: string }[] = [
   { id: "red", name: "Red", swatch: "#ff8a7a" }, { id: "violet", name: "Violet", swatch: "#d0a8ff" }, { id: "white", name: "White", swatch: "#f2f2ee" }
 ];
 export const TAPES: { id: Tape; name: string; swatch: string }[] = [
-  { id: "smoke", name: "Smoke", swatch: "#333236" }, { id: "clear", name: "Clear", swatch: "rgba(200,212,226,.55)" }, { id: "white", name: "White", swatch: "#e6e3dc" },
+  { id: "smoke", name: "Smoke", swatch: "#333236" }, { id: "clear", name: "Transparent", swatch: "rgba(200,212,226,.55)" }, { id: "white", name: "White", swatch: "#e6e3dc" },
   { id: "red", name: "Red", swatch: "#b52a31" }, { id: "blue", name: "Blue", swatch: "#2f5cb4" }, { id: "yellow", name: "Yellow", swatch: "#e5b938" }
 ];
 export const TRAY_THEMES: { id: TrayTheme; name: string }[] = [{ id: "dark", name: "Dark" }, { id: "light", name: "Light" }, { id: "album", name: "Album colour" }];
@@ -58,6 +59,8 @@ export const TRAY_ACCENTS: { id: TrayAccent; name: string; swatch: string }[] = 
 export interface Settings {
   finish: Finish;
   vinyl: Vinyl;
+  /** the mini player's size, 1 = 340 × 500 (0.75 – 1.75) */
+  miniScale: number;
   miniShell: Shell;
   miniLcd: Lcd;
   miniTape: Tape;
@@ -70,6 +73,13 @@ export interface Settings {
   particlesReact: boolean;
   intro: boolean;
   previews: boolean;
+  /** the vinyl surface hiss under the music (it follows the volume) */
+  surfaceNoise: boolean;
+  /** decode every file with Turntable's own decoder instead of the webview's (the fix when a file sounds wrong) */
+  nativeDecoder: boolean;
+  /** shuffle and repeat are remembered between launches */
+  shuffle: ShuffleMode;
+  repeat: RepeatMode;
   mediaKeys: boolean;
   hotkeys: Record<HotkeyAction, string>;
   closeToTray: boolean;
@@ -83,7 +93,8 @@ export const DEFAULT_HOTKEYS: Record<HotkeyAction, string> = {
   "vol-up": "Control+Alt+ArrowUp", "vol-down": "Control+Alt+ArrowDown", "mini-toggle": "", "window-toggle": ""
 };
 export const DEFAULTS: Settings = {
-  finish: "graphite", vinyl: "black", miniShell: "black", miniLcd: "amber", miniTape: "smoke", trayTheme: "dark", trayAccent: "ink", particles: true, particleAmount: .5, particlesReact: true, intro: true, previews: true,
+  finish: "graphite", vinyl: "black", miniScale: 1, miniShell: "black", miniLcd: "amber", miniTape: "smoke", trayTheme: "dark", trayAccent: "ink", particles: true, particleAmount: .5, particlesReact: true, intro: true, previews: true,
+  surfaceNoise: true, nativeDecoder: false, shuffle: "off", repeat: "off",
   mediaKeys: true, hotkeys: DEFAULT_HOTKEYS, closeToTray: false, autostart: false, startHidden: false, welcomed: false
 };
 
@@ -129,7 +140,7 @@ export async function loadSettings(): Promise<void> {
   useSettings.setState({ ...next, loaded: true });
   remember(next);
   applyLook(next);
-  useApp.setState({ previewsEnabled: next.previews });
+  useApp.setState({ previewsEnabled: next.previews, shuffle: next.shuffle, repeat: next.repeat });
   if (isTauri()) {
     await invoke("set_close_to_tray", { enabled: next.closeToTray }).catch(() => {});
     await applyHotkeys();

@@ -3,7 +3,9 @@ import { fetchLyrics } from "./api";
 import { parseLrc } from "./lyrics";
 import { readLyrics } from "./library";
 import { activeAlbum, useApp } from "./state";
-import type { Album, Track, TransportPhase } from "./types";
+import { updateSettings } from "./settings";
+import { t } from "./lang";
+import type { Album, RepeatMode, ShuffleMode, Track, TransportPhase } from "./types";
 
 let generation = 0;
 let pendingIndex: number | null = null;
@@ -15,6 +17,106 @@ const state = () => useApp.getState();
 const delay = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 const phase = (value: TransportPhase) => useApp.setState({ phase: value, playing: value === "PLAYING" });
 const valid = (id: number) => id === generation && !leaving && useApp.getState().screen === "player";
+/** a track that would not play: the needle noise stops with it, and the transport does not hang half-way */
+function failed(error: unknown): void {
+  audio.surface(0);
+  phase("STOPPED");
+  useApp.setState({ message: error instanceof Error ? error.message : t("Playback failed") });
+}
+
+/* ---------------------------------------------------------------- shuffle and repeat
+   Shuffle plays every track once in a random order (a "bag" that is emptied, then refilled when repeat is on),
+   inside the record on the deck ("album") or across the whole library ("all": the mini player and the tray).
+   `history` is what was played, so ◀◀ steps back through it. */
+interface Slot { albumId: string; index: number }
+let bag: Slot[] = [];
+let bagKey = "";
+let history: Slot[] = [];
+const sameSlot = (a: Slot | null, b: Slot | null) => !!a && !!b && a.albumId === b.albumId && a.index === b.index;
+function shuffled<T>(items: T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; }
+  return out;
+}
+/** Every track of the library. Shuffling "all" leaves the playlists out: their tracks are already in their albums. */
+function libraryTracks(withPlaylists = false): Slot[] {
+  return useApp.getState().albums.filter((album) => withPlaylists || album.kind !== "playlist")
+    .flatMap((album) => album.tracks.map((_, index) => ({ albumId: album.id, index })));
+}
+/** the track the player is on, or is travelling to */
+function hereSlot(): Slot | null {
+  const id = state().activeAlbumId;
+  return id ? { albumId: id, index: currentTarget() } : null;
+}
+function fillBag(from: Slot | null, force = false): void {
+  const mode = state().shuffle;
+  const key = mode + "|" + (mode === "album" ? state().activeAlbumId : state().albums.length);
+  const changed = key !== bagKey;
+  if (!changed && !force) return;
+  bagKey = key;
+  if (changed && mode === "album") history = [];      // another record: its own round, its own way back
+  const pool = mode === "album" ? libraryTracks(true).filter((slot) => slot.albumId === state().activeAlbumId) : libraryTracks();
+  bag = shuffled(pool.filter((slot) => !sameSlot(slot, from)));
+}
+/** The next track in shuffle order, without taking it; null when the round is over (and repeat is not on). */
+function peekShuffled(): Slot | null {
+  const from = hereSlot();
+  fillBag(from);
+  const exists = (slot: Slot) => !!state().albums.find((album) => album.id === slot.albumId)?.tracks[slot.index];
+  while (bag.length && (sameSlot(bag[0], from) || !exists(bag[0]))) bag.shift();   // a track picked by hand, or a deleted record
+  if (!bag.length) {
+    if (state().repeat !== "all") return null;
+    fillBag(from, true);
+    return bag[0] ?? from;                  // a library of one track: the same one again
+  }
+  return bag[0];
+}
+function preloadNext(album: Album, index: number): void {
+  const slot = state().shuffle === "off" ? { albumId: album.id, index: index + 1 } : peekShuffled();
+  const track = slot && state().albums.find((item) => item.id === slot.albumId)?.tracks[slot.index];
+  if (track) void audio.preload(track.filePath);
+}
+/** Play a slot: another track of this record moves the arm; another record is swapped onto the deck in place
+    (the way the search does it), which is also how the mini player and the tray start a record. */
+function goTo(slot: Slot, from: Slot | null): void {
+  const s = state();
+  const album = s.albums.find((item) => item.id === slot.albumId);
+  if (!album?.tracks[slot.index]) return;
+  if (from) { history.push(from); if (history.length > 300) history.shift(); }
+  if (slot.albumId === s.activeAlbumId) { void cueTrack(slot.index); return; }
+  if (s.screen === "import" || s.screen === "playlist" || s.transitionBusy) return;
+  audio.stopMusic();
+  useApp.setState({ section: "albums", screen: "player" });
+  void startAlbumNow(album, .25, slot.index);
+}
+export function setShuffle(mode: ShuffleMode): void {
+  history = []; bag = []; bagKey = "";
+  useApp.setState({ shuffle: mode });
+  void updateSettings({ shuffle: mode });
+  const s = state();
+  if (mode === "off") return;
+  if (mode === "all" && (!s.activeAlbumId || s.phase === "STOPPED") && !s.transitionBusy) {
+    // nothing on the deck: "shuffle everything" starts something
+    const slot = shuffled(libraryTracks())[0];
+    if (slot) goTo(slot, null);
+    return;
+  }
+  const album = activeAlbum();
+  if (album) preloadNext(album, s.trackIndex);
+}
+export const toggleShuffleAlbum = () => setShuffle(state().shuffle === "album" ? "off" : "album");
+/** The mini player's one shuffle key: off → this album → the whole library → off (no album on the tape: off ↔ library). */
+export function cycleShuffle(): void {
+  const s = state();
+  const order: ShuffleMode[] = s.activeAlbumId ? ["off", "album", "all"] : ["off", "all"];
+  setShuffle(order[(order.indexOf(s.shuffle) + 1) % order.length]);
+}
+export const toggleShuffleAll = () => setShuffle(state().shuffle === "all" ? "off" : "all");
+export function setRepeat(mode: RepeatMode): void {
+  useApp.setState({ repeat: mode });
+  void updateSettings({ repeat: mode });
+}
+export const cycleRepeat = () => setRepeat(({ off: "all", all: "one", one: "off" } as const)[state().repeat]);
 export function albumProgress(album: Album, index: number, position: number): number {
   const total = album.tracks.reduce((sum, track) => sum + Math.max(track.duration, 1), 0);
   const before = album.tracks.slice(0, index).reduce((sum, track) => sum + Math.max(track.duration, 1), 0);
@@ -57,10 +159,9 @@ async function playTrack(index: number, id: number, offset = 0, fullSpeed = fals
     if (!valid(id)) return;
     audio.surface(.006);
     phase("PLAYING");
-    const next = album.tracks[index + 1];
-    if (next) void audio.preload(next.filePath);
+    preloadNext(album, index);
   } catch (error) {
-    if (valid(id)) useApp.setState({ message: error instanceof Error ? error.message : "Playback failed" });
+    if (valid(id)) failed(error);
   }
 }
 export async function startAlbum(album: Album): Promise<void> {
@@ -91,11 +192,10 @@ export async function startAlbum(album: Album): Promise<void> {
     phase("PLAYING");
     audio.surface(.006);
     console.info("Music started after", Math.round(performance.now() - began), "ms");
-    const next = album.tracks[1];
-    if (next) void audio.preload(next.filePath);
+    preloadNext(album, 0);
     void lyricsFor(album.tracks[0], album, id);
   } catch (error) {
-    if (valid(id)) useApp.setState({ message: error instanceof Error ? error.message : "Playback failed" });
+    if (valid(id)) failed(error);
   }
 }
 /** Start the album at once (the tap on the record is the user gesture): needle already on its way,
@@ -116,13 +216,9 @@ export async function startAlbumNow(album: Album, fadeIn: number, index = 0): Pr
     await audio.play(true, fadeIn);
     audio.surface(.006);
     void lyricsFor(first, album, id);
-    const next = album.tracks[index + 1];
-    if (next) void audio.preload(next.filePath);
+    preloadNext(album, index);
   } catch (error) {
-    if (valid(id)) {
-      phase("STOPPED");
-      useApp.setState({ message: error instanceof Error ? error.message : "Playback failed" });
-    }
+    if (valid(id)) failed(error);
   }
 }
 export async function cueTrack(index: number, position = 0): Promise<void> {
@@ -163,10 +259,9 @@ export async function cueTrack(index: number, position = 0): Promise<void> {
     phase("PLAYING");
     console.info("Track changed after", Math.round(performance.now() - began), "ms");
     void lyricsFor(track, album, id);
-    const next = album.tracks[index + 1];
-    if (next) void audio.preload(next.filePath);
+    preloadNext(album, index);
   } catch (error) {
-    if (valid(id)) useApp.setState({ message: error instanceof Error ? error.message : "Playback failed" });
+    if (valid(id)) failed(error);
   }
 }
 export function pauseOrResume(): void {
@@ -213,14 +308,37 @@ export function nextTrack(): void {
   if (!album || leaving) return;            // a track ending while we leave for the crate must not start the next
   const from = currentTarget();
   if (state().phase === "CUEING_OUT") return;
+  if (state().shuffle !== "off") {
+    const slot = peekShuffled();
+    if (!slot) { void stopAlbum(); return; }
+    const here = hereSlot();
+    bag = bag.filter((item) => !sameSlot(item, slot));
+    goTo(slot, here);
+    return;
+  }
   if (from + 1 < album.tracks.length) void cueTrack(from + 1);
+  else if (state().repeat === "all") void cueTrack(0);
   else void stopAlbum();
 }
-audio.onEnded = nextTrack;
+/** A track that ran to its end: repeat-one plays it again at once (no arm travel), otherwise on to the next. */
+audio.onEnded = () => {
+  if (leaving) return;
+  if (state().repeat === "one" && activeAlbum()) { void playTrack(state().trackIndex, ++generation, 0, true); return; }
+  nextTrack();
+};
 export function previousTrack(): void {
-  const state = useApp.getState();
-  if (state.phase !== "CUEING_IN" && state.position > 3) audio.seek(0);
-  else void cueTrack(Math.max(0, currentTarget() - 1));
+  const s = useApp.getState();
+  if (s.phase !== "CUEING_IN" && s.position > 3) { audio.seek(0); return; }
+  if (s.shuffle !== "off") {
+    // back through what was played; the track left behind becomes the next one again
+    const slot = history.pop();
+    if (!slot) { audio.seek(0); return; }
+    const here = hereSlot();
+    if (here) bag.unshift(here);
+    goTo(slot, null);
+    return;
+  }
+  void cueTrack(Math.max(0, currentTarget() - 1));
 }
 export function seek(seconds: number): void { audio.seek(seconds); }
 export async function seekAlbumProgress(progress: number): Promise<void> {

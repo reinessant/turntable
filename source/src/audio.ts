@@ -4,6 +4,7 @@ import { readBlob } from "./library";
 import { isScPath, scTrackBytes } from "./soundcloud";
 import { Rack } from "./fx";
 import { useApp } from "./state";
+import { useSettings } from "./settings";
 import type { Album } from "./types";
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value));
@@ -13,6 +14,15 @@ interface PreviewVoice {
   filter: BiquadFilterNode;
   url: string;
   stopped: boolean;
+}
+/** A decode that came out as pure silence is a failed decode (some m4a do that), not a very quiet song. */
+function silent(buffer: AudioBuffer): boolean {
+  if (buffer.duration < 1) return false;
+  for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+    const data = buffer.getChannelData(channel);
+    for (let i = 0; i < data.length; i += 7) if (data[i] > 1e-5 || data[i] < -1e-5) return false;
+  }
+  return true;
 }
 function waitForMetadata(element: HTMLAudioElement): Promise<void> {
   if (element.readyState >= 1) return Promise.resolve();
@@ -75,6 +85,12 @@ class AudioEngine {
   private wasPaused = false;
   private wasHandOn = false;
   private handReversed = false;
+  /** how loud the needle noise wants to be (before the volume and the setting scale it) */
+  private surfaceLevel = 0;
+  private surfaceSetAt = 0;
+  private lastTickAt = 0;
+  private unlocked = false;
+  private idleSince = 0;
   speed = 0;
   targetSpeed = 0;
   handOn = false;
@@ -105,10 +121,34 @@ class AudioEngine {
     this.surfaceGain.gain.value = 0;
     this.noise.start();
     this.musicGain.gain.value = useApp.getState().volume;
+    // the switch in the settings takes effect at once
+    // a timer, not the frame loop: a minimised or tray-hidden window gets no animation frames, and that is exactly
+    // when the output has to be let go
+    window.setInterval(() => this.idleCheck(), 1000);
+    // the frame loop calls tick() — but a minimised or tray-hidden window gets no frames, and then the position,
+    // the end-of-track logic and the listening stats would stand still while the music plays: a timer covers for it
+    window.setInterval(() => { if (performance.now() - this.lastTickAt > 700) this.tick(.5); }, 500);
+    let hiss = useSettings.getState().surfaceNoise;
+    useSettings.subscribe((state) => { if (state.surfaceNoise !== hiss) { hiss = state.surfaceNoise; this.applySurface(); } });
   }
   async unlock(): Promise<void> {
     if (this.context.state !== "running") await this.context.resume();
+    this.unlocked = this.context.state === "running";
+    this.idleSince = 0;
     this.lastClock = this.context.currentTime;
+  }
+  /** A running AudioContext keeps the sound card's output stream open even when nothing plays, and some cards hiss
+      on an open stream. So after a few quiet seconds the context is suspended; play, preview and the cue sounds
+      wake it again. */
+  private idleCheck(): void {
+    // safety net: needle noise with no record turning under it (a seek that cancelled the pause's own timer, a track
+    // that never loaded…) must not stay on
+    if (!this.source && !this.musicActive && this.surfaceLevel > 0 && performance.now() - this.surfaceSetAt > 4000) this.surface(0);
+    const quiet = !this.musicActive && !this.source && !this.previewVoices.length && !this.handOn && this.surfaceLevel === 0;
+    if (!quiet) { this.idleSince = 0; return; }
+    const now = performance.now();
+    if (!this.idleSince) this.idleSince = now;
+    else if (now - this.idleSince > 3000 && this.unlocked && this.context.state === "running") void this.context.suspend().catch(() => {});
   }
   private readonly spectrumBins = new Uint8Array(1024);
   /** Music level per band (0..1), for the rack displays: the average of the FFT bins within ±half an octave. */
@@ -139,13 +179,23 @@ class AudioEngine {
     const volume = clamp(value);
     this.musicGain.gain.setTargetAtTime(volume, this.context.currentTime, .025);
     useApp.setState({ volume });
+    this.applySurface();
   }
+  /** The needle's surface noise. It sits on the same fader as the music: turned down, a quiet record gets no
+      hiss of its own on top (it used to ignore the volume, so a quiet track was mostly noise). */
   surface(level: number, seconds = .15): void {
+    this.surfaceLevel = Math.min(.021, Math.max(0, level));
+    this.surfaceSetAt = performance.now();
+    this.applySurface(seconds);
+  }
+  private applySurface(seconds = .15): void {
     const now = this.context.currentTime;
-    const ceiling = Math.min(.021, Math.max(0, level));
-    const ducked = this.musicActive ? ceiling * .5 : ceiling;
+    const follow = clamp(useApp.getState().volume / .78) ** 1.5;
+    const level = useSettings.getState().surfaceNoise ? this.surfaceLevel * follow : 0;
+    // while a record plays the hiss is half as loud, and a lot quieter than it was
+    const target = this.musicActive ? level * .35 : level;
     this.surfaceGain.gain.cancelScheduledValues(now);
-    this.surfaceGain.gain.setTargetAtTime(ducked, now, Math.max(.01, seconds / 3));
+    this.surfaceGain.gain.setTargetAtTime(target, now, Math.max(.01, seconds / 3));
   }
   private async decode(path: string): Promise<AudioBuffer> {
     if (path.startsWith("demo-tone:") && import.meta.env.DEV) {
@@ -162,9 +212,32 @@ class AudioEngine {
     }
     if (isScPath(path)) return this.context.decodeAudioData(await scTrackBytes(path));
     await invoke("allow_import_path", { path });
-    const bytes = await readFile(path);
-    const copy = bytes.slice().buffer as ArrayBuffer;
-    return this.context.decodeAudioData(copy);
+    // the webview's decoder first; Turntable's own when it fails, hands back silence, or the settings say so
+    if (!useSettings.getState().nativeDecoder) {
+      try {
+        const bytes = await readFile(path);
+        const decoded = await this.context.decodeAudioData(bytes.slice().buffer as ArrayBuffer);
+        if (!silent(decoded)) return decoded;
+      } catch (error) {
+        if (import.meta.env.DEV) console.warn("Webview could not decode", path, error);
+      }
+    }
+    return this.decodeNative(path);
+  }
+  /** Rust decodes the file (Symphonia) and sends the samples: 12 bytes of header, then 16-bit interleaved. */
+  private async decodeNative(path: string): Promise<AudioBuffer> {
+    let raw: ArrayBuffer;
+    try { raw = await invoke<ArrayBuffer>("decode_audio", { path }); }
+    catch (error) { throw new Error("Could not play " + (path.split(/[\\/]/).pop() || path) + ": " + String(error)); }
+    const header = new DataView(raw);
+    const rate = header.getUint32(0, true), channels = header.getUint32(4, true), frames = header.getUint32(8, true);
+    const samples = new Int16Array(raw, 12, frames * channels);
+    const buffer = this.context.createBuffer(channels, frames, rate);
+    for (let channel = 0; channel < channels; channel++) {
+      const out = buffer.getChannelData(channel);
+      for (let i = 0, at = channel; i < frames; i++, at += channels) out[i] = samples[at] / 32768;
+    }
+    return buffer;
   }
   async preload(path: string): Promise<void> {
     if (!path || path === this.bufferPath || path === this.preloaded?.path) return;
@@ -254,6 +327,7 @@ class AudioEngine {
     this.speed = 1;
     this.targetSpeed = 1;
     this.cueTimer = window.setTimeout(() => this.stopSource(), 130);
+    this.surface(0);                // the needle is up: no surface noise either
     this.sound("cue");
   }
   async lowerCue(): Promise<void> {
@@ -266,6 +340,7 @@ class AudioEngine {
     this.speed = 1;
     this.targetSpeed = 1;
     this.fadeMusic(useApp.getState().volume, .16);
+    this.surface(.006);
     this.sound("cue");
   }
   pause(): void {
@@ -317,9 +392,10 @@ class AudioEngine {
     this.position = clamp(seconds, 0, Math.max(0, this.buffer.duration - .01));
     if (this.wasPaused) {
       // paused (or still spinning down): stay paused — the next play() resumes from the new position
-      this.stopSource();
+      this.stopSource();              // (this also cancels pause()'s own timer, so the needle noise is cut here)
       this.musicActive = false;
       this.speed = 0;
+      this.surface(0);
       useApp.setState({ position: this.position });
       return;
     }
@@ -331,6 +407,7 @@ class AudioEngine {
     useApp.setState({ position: this.position });
   }
   tick(delta: number): void {
+    this.lastTickAt = performance.now();
     const now = this.context.currentTime;
     const clockDelta = this.lastClock ? Math.max(0, now - this.lastClock) : delta;
     this.lastClock = now;
@@ -371,7 +448,11 @@ class AudioEngine {
       520 + Math.sin(this.wobble * Math.PI * .36) * 70, now, .08);
   }
   sound(kind: "motor" | "cue" | "needle" | "felt" | "flap" | "drop"): void {
-    if (this.context.state !== "running") return;
+    if (this.context.state !== "running") {
+      // asleep (see idleCheck): wake it, then make the sound — but never before the first click has unlocked audio
+      if (this.unlocked) void this.context.resume().then(() => { if (this.context.state === "running") this.sound(kind); }, () => {});
+      return;
+    }
     const now = this.context.currentTime;
     if (kind === "drop") {
       // the record landing on the platter: a short, deep thump

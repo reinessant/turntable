@@ -4,6 +4,7 @@ import { GEQ_FREQS, PLUGINS } from "./fx";
 import type { ParamDef, PluginDef, UnitState } from "./fx";
 import { pauseOrResume } from "./player";
 import { activeAlbum, useApp } from "./state";
+import { t } from "./lang";
 import { Icon, coverSrc, splitTitle } from "./PlayerScreen";
 import { Ear, Fader, HSlider, Jewel, Knob, PatchCable, Reels, SevenSeg, VUMeter, Valves, vuAngle } from "./RackParts";
 import type { KnobLook } from "./RackParts";
@@ -142,7 +143,7 @@ function RackUnit({ plugin, unit, index, onFocus }: Ctl & { index: number; onFoc
   const Face = FACES[plugin.id];
   return <article className={"rk-unit face-" + plugin.id + (unit.on ? " on" : "")} data-i={index}
     onPointerDownCapture={(event) => { if (!event.currentTarget.classList.contains("front")) { event.preventDefault(); event.stopPropagation(); onFocus(index); } }}>
-    <PatchCable on={unit.on} label={(unit.on ? "Unplug " : "Plug in ") + plugin.name} onToggle={() => rack.setOn(plugin.id, !unit.on)} />
+    <PatchCable on={unit.on} label={(unit.on ? t("Unplug") : t("Plug in")) + " " + plugin.name} onToggle={() => rack.setOn(plugin.id, !unit.on)} />
     {plugin.id !== "filter" && <Ear side="left" />}
     <div className="rk-panel"><Face plugin={plugin} unit={unit} /></div>
     {plugin.id !== "filter" && <Ear side="right" />}
@@ -157,7 +158,7 @@ function NowPlaying() {
   const trackIndex = useApp((state) => state.trackIndex);
   const phase = useApp((state) => state.phase);
   const album = albums.find((item) => item.id === activeId) ?? activeAlbum();
-  if (!album) return <div className="rk-now empty">Nothing on the deck — pick a record in <b>Albums</b></div>;
+  if (!album) return <div className="rk-now empty">{t("Nothing on the deck — pick a record in")} <b>{t("Albums")}</b></div>;
   const track = album.tracks[trackIndex];
   return <div className="rk-now">
     <button className="icon-btn" style={{ marginLeft: -10 }} aria-label={phase === "PLAYING" ? "Pause" : "Play"} onClick={pauseOrResume}><Icon name={phase === "PLAYING" ? "pause" : "play"} /></button>
@@ -263,8 +264,8 @@ export function PluginsScreen() {
     if (Math.abs(wheel.current) > 40) { focus(focused.current + Math.sign(wheel.current)); wheel.current = 0; }
   }}>
     <header className="header">
-      <div className="brand"><span className="h">Plugins</span><span className="mono">{engaged ? engaged + " of " + PLUGINS.length + " in" : PLUGINS.length + " units"}</span></div>
-      <div className="hright"><button className="pill-btn" onClick={() => rack.reset()}><Icon name="x" size={14} />Reset rack</button></div>
+      <div className="brand"><span className="h">{t("Plugins")}</span><span className="mono">{engaged ? engaged + " " + t("of") + " " + PLUGINS.length + " " + t("on") : PLUGINS.length + " " + t("units")}</span></div>
+      <div className="hright"><button className="pill-btn" onClick={() => rack.reset()}><Icon name="x" size={14} />{t("Reset rack")}</button></div>
     </header>
     <div className="rk-stack" ref={stack}>
       {PLUGINS.map((plugin, index) => <RackUnit key={plugin.id} plugin={plugin} unit={state[plugin.id]} index={index} onFocus={focus} />)}
@@ -272,7 +273,7 @@ export function PluginsScreen() {
     <div className="caption rk-caption" ref={caption}><h2>{first.model + " " + first.name}</h2><div className="sub"><span className="after">{first.after}</span></div></div>
     <footer className="foot">
       <NowPlaying />
-      <div className="hint">Scroll to flip · drag a knob · double-click resets</div>
+      <div className="hint">{t("Scroll to flip · drag a knob · double-click resets")}</div>
       <div className="count mono" ref={count}>01 / {String(PLUGINS.length).padStart(2, "0")}</div>
     </footer>
   </div>;

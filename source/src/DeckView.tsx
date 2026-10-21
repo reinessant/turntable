@@ -1,3 +1,4 @@
+import { t } from "./lang";
 import { useEffect, useRef, useState } from "react";
 import { audio } from "./audio";
 import { deckMotion } from "./deckMotion";
@@ -180,8 +181,8 @@ export function DeckView({ album, cover, visualDemo = false, form = "landscape",
   return <div className="deck-container" ref={wrapper} style={{ width, height: width * g.h / g.w, ...(rotate ? {
     transform: `rotate(${rotate}deg)`, transformOrigin: `${(g.sx * deckScale).toFixed(1)}px ${(g.sy * deckScale).toFixed(1)}px`,
     "--deck-rot": rotate + "deg" } as React.CSSProperties : {}) }}>
-    <div ref={host} id="deck" aria-label="Turntable" />
-    <button className="platter-hit" style={{ left: (g.sx - 151) * deckScale, top: (g.sy - 151) * deckScale, width: 302 * deckScale, height: 302 * deckScale }} aria-label="Touch platter" onPointerDown={(event) => {
+    <div ref={host} id="deck" aria-label={t("Turntable")} />
+    <button className="platter-hit" style={{ left: (g.sx - 151) * deckScale, top: (g.sy - 151) * deckScale, width: 302 * deckScale, height: 302 * deckScale }} aria-label={t("Touch platter")} onPointerDown={(event) => {
       event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId);
       // the hand only grabs the record once it actually moves: a plain click must not stutter the music
       platterGesture.current = { angle: platterAngle(event), time: performance.now(), x: event.clientX, y: event.clientY, grabbed: false };
@@ -202,7 +203,7 @@ export function DeckView({ album, cover, visualDemo = false, form = "landscape",
       audio.handRate = clamp(difference / seconds / (Math.PI * 2 / 1.8), -2, 2);
       platterGesture.current = { ...previous, angle: next, time: now };
     }} onPointerUp={release} onPointerCancel={release} />
-    <button className="arm-hit" aria-label="Drag tonearm to seek" style={{ left: armPosition.x * deckScale - 22, top: armPosition.y * deckScale - 22 }}
+    <button className="arm-hit" aria-label={t("Drag tonearm to seek")} style={{ left: armPosition.x * deckScale - 22, top: armPosition.y * deckScale - 22 }}
       onPointerDown={(event) => {
         event.preventDefault(); event.stopPropagation();
         event.currentTarget.setPointerCapture(event.pointerId);

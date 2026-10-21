@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { enterMini } from "./mini";
+import { t } from "./lang";
 
 function WindowIcon({ name }: { name: "minimize" | "maximize" | "restore" | "close" | "mini" }) {
   const paths = {
@@ -40,10 +41,10 @@ export function TitleBar() {
   };
   return <div className="titlebar" data-tauri-drag-region onDoubleClick={(event) => { if (event.target === event.currentTarget) void toggleFullscreen(); }}>
     <div className="titlebar-controls">
-      <button aria-label="Mini player" title="Mini player (Ctrl+M)" onClick={(event) => { event.stopPropagation(); void enterMini(); }}><WindowIcon name="mini" /></button>
-      <button aria-label="Minimize window" onClick={(event) => { event.stopPropagation(); void appWindow?.minimize(); }}><WindowIcon name="minimize" /></button>
-      <button aria-label={fullscreen ? "Exit full screen" : "Full screen"} onClick={(event) => { event.stopPropagation(); void toggleFullscreen(); }}><WindowIcon name={fullscreen ? "restore" : "maximize"} /></button>
-      <button className="titlebar-close" aria-label="Close window" onClick={(event) => { event.stopPropagation(); void appWindow?.close(); }}><WindowIcon name="close" /></button>
+      <button aria-label={t("Mini player")} title={t("Mini player (Ctrl+M)")} onClick={(event) => { event.stopPropagation(); void enterMini(); }}><WindowIcon name="mini" /></button>
+      <button aria-label={t("Minimize window")} onClick={(event) => { event.stopPropagation(); void appWindow?.minimize(); }}><WindowIcon name="minimize" /></button>
+      <button aria-label={fullscreen ? t("Exit full screen") : t("Full screen")} onClick={(event) => { event.stopPropagation(); void toggleFullscreen(); }}><WindowIcon name={fullscreen ? "restore" : "maximize"} /></button>
+      <button className="titlebar-close" aria-label={t("Close window")} onClick={(event) => { event.stopPropagation(); void appWindow?.close(); }}><WindowIcon name="close" /></button>
     </div>
   </div>;
 }

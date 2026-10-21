@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { audio } from "./audio";
 import { asset, setAlbumLiked } from "./library";
-import { cueTrack, nextTrack, pauseOrResume, previousTrack, seek } from "./player";
+import { cueTrack, cycleRepeat, nextTrack, pauseOrResume, previousTrack, seek, setShuffle, toggleShuffleAlbum } from "./player";
+import { RepeatIcon, ShuffleIcon } from "./PlayModeIcons";
 import { useApp } from "./state";
 import { DECK_GEOMETRY, DeckView } from "./DeckView";
 import { ArrowOut, ScLogo } from "./ScParts";
 import { openOnSoundCloud } from "./soundcloud";
 import { useScrub } from "./scrub";
+import { count, t } from "./lang";
 import type { Album } from "./types";
 
 declare global { interface Window { icon: (name: string, size?: number) => string } }
@@ -121,7 +123,7 @@ function TrackCarousel({ album, cover, demo }: { album: Album; cover: string; de
       </svg>
       <div className="ring" ref={ring}>
         {album.tracks.map((track, index) => <button className={"rail-mark" + (index === trackIndex ? " on" : "")} key={track.id}
-          title={String(index + 1).padStart(2, "0") + " · " + track.title} aria-label={"Track " + (index + 1) + ": " + track.title} onClick={() => choose(index)}>
+          title={String(index + 1).padStart(2, "0") + " · " + track.title} aria-label={t("Track") + " " + (index + 1) + ": " + track.title} onClick={() => choose(index)}>
           <span className="num mono">{String(index + 1).padStart(2, "0")}</span>
           <span className="dot">{index === trackIndex && <img src={cover} alt="" />}</span>
         </button>)}
@@ -147,7 +149,7 @@ function LyricsColumn({ demo }: { demo: boolean }) {
     // keep the active line on the middle of the lyrics box (column or band)
     if (element && current) element.style.transform = "translateY(" + ((element.parentElement?.clientHeight ?? 400) * .5 - current.offsetTop - current.offsetHeight / 2) + "px)";
   }, [active, lines.length]);
-  if (!lines.length) return <section className="lyrics"><span className="micro" style={{ position: "absolute", top: "38%" }}>{lyrics.mode === "loading" ? "Loading lyrics…" : "No lyrics"}</span></section>;
+  if (!lines.length) return <section className="lyrics"><span className="micro" style={{ position: "absolute", top: "38%" }}>{lyrics.mode === "loading" ? t("Loading lyrics…") : t("No lyrics")}</span></section>;
   return <section className="lyrics"><div className="inner" ref={inner}>
     {lines.map((line, index) => {
       const distance = Math.abs(index - active);
@@ -168,6 +170,8 @@ export function PlayerScreen({ album, onBack, onEdit, demo = false }: {
   const duration = useApp((state) => state.duration);
   const phase = useApp((state) => state.phase);
   const volume = useApp((state) => state.volume);
+  const shuffle = useApp((state) => state.shuffle);
+  const repeat = useApp((state) => state.repeat);
   const [muted, setMuted] = useState(false);
   const lastVolume = useRef(.78);
   const tracks = useRef<HTMLDivElement>(null);
@@ -184,23 +188,24 @@ export function PlayerScreen({ album, onBack, onEdit, demo = false }: {
   const layout = deckLayout();
   return <div className={"screen player-screen layout-" + layout.name + (playing ? " playing" : "")}>
     <header className="header">
-      <button className="pill-btn" onClick={onBack}><Icon name="caret-left" size={14} />Crate</button>
+      <button className="pill-btn" onClick={onBack}><Icon name="caret-left" size={14} />{t("Crate")}</button>
       {album.source?.kind === "soundcloud"
-        ? <button className="pill-btn sc-source" title="Open on SoundCloud" onClick={() => void openOnSoundCloud(album.source!.url).catch((error) => useApp.setState({ message: String(error) }))}><ScLogo size={8} />SoundCloud<ArrowOut size={10} /></button>
-        : <div className="hright"><button className="pill-btn search-btn" aria-label="Search the library" title="Search (Ctrl+K)" onClick={() => useApp.setState({ search: true })}><Icon name="magnifying-glass" size={14} />Search<kbd>Ctrl K</kbd></button>
-          <button className="pill-btn" onClick={onEdit}><Icon name="pencil-simple" size={14} />Edit album</button></div>}
+        ? <button className="pill-btn sc-source" title={t("Open on SoundCloud")} onClick={() => void openOnSoundCloud(album.source!.url).catch((error) => useApp.setState({ message: String(error) }))}><ScLogo size={8} />SoundCloud<ArrowOut size={10} /></button>
+        : <div className="hright"><button className="pill-btn search-btn" aria-label={t("Search the library")} title={t("Search (Ctrl+K)")} onClick={() => useApp.setState({ search: true })}><Icon name="magnifying-glass" size={14} />{t("Search")}<kbd>Ctrl K</kbd></button>
+          <button className="pill-btn" onClick={onEdit}><Icon name="pencil-simple" size={14} />{album.kind === "playlist" ? t("Edit playlist") : t("Edit album")}</button></div>}
     </header>
     <TrackCarousel album={album} cover={cover} demo={demo} />
     <section className="left">
       <div className="album-cover"><img src={cover} alt={album.title} /></div>
       <h1 className="album-title">{album.title}</h1>
       <div className="album-artist">{album.artist}</div>
-      <div className="album-meta"><span className="mono">{album.year || ""}</span><span className="mono">{album.tracks.length} {album.tracks.length === 1 ? "track" : "tracks"}</span><span className="mono">{time(total)}</span></div>
+      {album.genres?.length ? <div className="album-genres">{album.genres.map((genre) => <span className="gp-chip small" key={genre}>{genre}</span>)}</div> : null}
+      <div className="album-meta"><span className="mono">{album.year || ""}</span><span className="mono">{count(album.tracks.length, "track")}</span><span className="mono">{time(total)}</span></div>
       <div className="tracks" ref={tracks}>{album.tracks.map((track, index) =>
         <button className={"trk" + (index === trackIndex ? " on" : "")} key={track.id}
           onClick={() => demo ? useApp.setState({ trackIndex: index, position: 0, duration: track.duration }) : void cueTrack(index)}>
           {index === trackIndex ? <span className="dot" /> : <span className="mono">{String(index + 1).padStart(2, "0")}</span>}
-          <span className="t">{splitTitle(track.title, album.artist)[0]}<span className="x">{splitTitle(track.title, album.artist)[1]}</span></span><span className="mono">{time(track.duration)}</span>
+          <span className="t">{splitTitle(track.title, track.artist ?? album.artist)[0]}<span className="x">{track.artist ? track.artist : splitTitle(track.title, album.artist)[1]}</span></span><span className="mono">{time(track.duration)}</span>
         </button>)}</div>
     </section>
     <div className="stage"><div className="group" style={layout.group}>
@@ -208,18 +213,27 @@ export function PlayerScreen({ album, onBack, onEdit, demo = false }: {
     </div></div>
     <LyricsColumn demo={demo} />
     <div className="capsule">
-      <button className="icon-btn" aria-label="Previous track" onClick={previousTrack}><Icon name="skip-back" /></button>
-      <button className="play" aria-label={playing ? "Pause" : "Play"} onClick={pauseOrResume}><Icon name={playing ? "pause-fill" : "play-fill"} /></button>
-      <button className="icon-btn" aria-label="Next track" onClick={nextTrack}><Icon name="skip-forward" /></button>
+      <button className="icon-btn" aria-label={t("Previous track")} onClick={previousTrack}><Icon name="skip-back" /></button>
+      <button className="play" aria-label={playing ? t("Pause") : t("Play")} onClick={pauseOrResume}><Icon name={playing ? "pause-fill" : "play-fill"} /></button>
+      <button className="icon-btn" aria-label={t("Next track")} onClick={nextTrack}><Icon name="skip-forward" /></button>
+      {/* shuffle plays this record's tracks in random order (the tray and the mini player shuffle the whole library) */}
+      <button className={"icon-btn mode" + (shuffle !== "off" ? " on" : "")} aria-pressed={shuffle !== "off"}
+        aria-label={shuffle === "all" ? t("Stop shuffling the library") : t("Shuffle this album")}
+        title={shuffle === "all" ? t("Shuffling the whole library — click to stop") : shuffle === "album" ? t("Shuffle: on") : t("Shuffle this album")}
+        onClick={() => shuffle === "all" ? setShuffle("off") : toggleShuffleAlbum()}><ShuffleIcon /></button>
+      <button className={"icon-btn mode" + (repeat !== "off" ? " on" : "")} aria-pressed={repeat !== "off"}
+        aria-label={repeat === "off" ? t("Repeat") : repeat === "all" ? t("Repeat the album") : t("Repeat this track")}
+        title={repeat === "off" ? t("Repeat: off") : repeat === "all" ? t("Repeat: loop the album") : t("Repeat: this track")}
+        onClick={cycleRepeat}><RepeatIcon one={repeat === "one"} /></button>
       <span className="time mono">{time(scrub.preview ?? position)}</span>
-      <div className={"bar" + (scrub.dragging ? " dragging" : "")} role="slider" tabIndex={0} aria-label="Seek" aria-valuemin={0} aria-valuemax={duration || 0} aria-valuenow={position}
+      <div className={"bar" + (scrub.dragging ? " dragging" : "")} role="slider" tabIndex={0} aria-label={t("Seek")} aria-valuemin={0} aria-valuemax={duration || 0} aria-valuenow={position}
         {...scrub.handlers}
         onKeyDown={(event) => { if (event.key === "ArrowRight") { event.stopPropagation(); seek(position + 5); } if (event.key === "ArrowLeft") { event.stopPropagation(); seek(position - 5); } }}>
         <div className="track"><div className="fill" style={{ width: shown + "%" }} /><div className="thumb" style={{ left: shown + "%" }} /></div>
         {scrub.hover && duration > 0 && <span className="bar-tip mono" style={{ left: scrub.hover.x * 100 + "%" }}>{time(scrub.preview ?? scrub.hover.seconds)}</span>}
       </div>
       <span className="time mono">{time(duration)}</span><span className="sep" />
-      <button className="icon-btn" aria-label="Like album" onClick={async () => {
+      <button className="icon-btn" aria-label={t("Like album")} onClick={async () => {
         // flip locally, keeping the crate's order (the backend returns albums in storage order)
         const flip = (liked: boolean) => useApp.setState({ albums: useApp.getState().albums.map((item) => item.id === album.id ? { ...item, liked } : item) });
         const liked = !album.liked;
@@ -228,12 +242,12 @@ export function PlayerScreen({ album, onBack, onEdit, demo = false }: {
         try { await setAlbumLiked(album.id, liked); }
         catch (error) { flip(!liked); useApp.setState({ message: String(error) }); }
       }}><Icon name={album.liked ? "heart-fill" : "heart"} /></button>
-      <div className={"volume-control" + (muted || volume === 0 ? " muted" : "")}><button className="icon-btn" aria-label={muted ? "Unmute" : "Mute"} onClick={() => {
+      <div className={"volume-control" + (muted || volume === 0 ? " muted" : "")}><button className="icon-btn" aria-label={muted ? t("Unmute") : t("Mute")} onClick={() => {
         if (muted) audio.setVolume(lastVolume.current);
         else { lastVolume.current = volume || lastVolume.current; audio.setVolume(0); }
         setMuted(!muted);
       }}><Icon name="speaker-high" /></button>
-        <div className="volume-pop"><input aria-label="Volume" type="range" min="0" max="1" step=".01" value={muted ? 0 : volume}
+        <div className="volume-pop"><input aria-label={t("Volume")} type="range" min="0" max="1" step=".01" value={muted ? 0 : volume}
           style={{ "--v": (muted ? 0 : volume) * 100 + "%" } as React.CSSProperties}
           onChange={(event) => { setMuted(false); audio.setVolume(Number(event.target.value)); }} /></div></div>
     </div>

@@ -7,11 +7,25 @@
 - **Crate & turntable** – flip through your albums, drop the needle, drag the tonearm to wind to any moment, hold the platter to scratch.
 - **Synced lyrics** – found automatically on [LRCLIB](https://lrclib.net) and kept on your computer, so they work offline. Or drop an `.lrc` next to a track.
 - **Plugin rack** – seven studio-style units between the record and the volume: two equalizers, a leveling amp, a valve clipper, a sampler crusher, a lowpass filter and a tape echo.
-- **Mini player & tray** – `Ctrl+M` folds the app into an always-on-top cassette recorder. A tray menu and global keys keep it within reach with the window hidden.
+- **Playlists** – build them from tracks of any of your albums; a collage cover is made for you. Albums and files stay as they are, a playlist only points at them.
+- **Genres** – up to three tags per album or playlist, a genre filter in the crate and genre search, with plenty of underground ones (rage, plugg, phonk, digicore, hyperpop and more).
+- **Stats** – time on the turntable, minutes per day, your listening clock, a half-year heatmap, top albums and tracks, streaks and a few little facts.
+- **Shuffle & loop** – in an album shuffle stays inside it; in the mini player and the tray it can be off, album-only or across all albums.
+- **Mini player & tray** – `Ctrl+M` folds the app into an always-on-top, resizable cassette recorder. A tray menu and global keys keep it within reach with the window hidden.
 - **Search** – `Ctrl+K` finds albums, artists and tracks, even with the wrong keyboard layout or a typo.
 - **Make it yours** – turntable and record colours, the mini player's body, display and cassette, dust in the air, start with Windows.
+- **English and Russian** – the whole interface, switchable in Settings.
+- **Any common format** – mp3, m4a, flac, wav, ogg and opus; what the webview can't play is decoded by a built-in native decoder.
 
 ![Crate](docs/screenshots/crate.webp)
+
+![Stats](docs/screenshots/stats.webp)
+
+![Playlist editor](docs/screenshots/playlist.webp)
+
+![Genres](docs/screenshots/genres.webp)
+
+![Russian interface](docs/screenshots/russian.webp)
 
 ![Turntable with synced lyrics](docs/screenshots/turntable.webp)
 
@@ -27,9 +41,9 @@ Windows 10/11, x64. Your files are copied into the app's own folder, so moving t
 
 ## Download and install
 
-1. Open the **[Releases](../../releases)** page of this repository and download **`Turntable-Setup-0.1.0.exe`** from *Assets*.
+1. Open the **[Releases](../../releases)** page of this repository and download **`Turntable-Setup-0.1.2.exe`** from *Assets*.
 2. Run it. Windows may say *"Windows protected your PC"* because the installer is not code-signed yet: click **More info → Run anyway**.
-3. Press **Install**. The setup finishes in a few seconds; keep *Open when done* ticked and Turntable starts by itself. The setup speaks English and Russian: the **RU / EN** switch is in its top-right corner (it starts in your system language).
+3. Press **Install** (**Update** if an older version is already installed, **Reinstall** if it is the current one). The setup finishes in a few seconds; keep *Open when done* ticked and Turntable starts by itself. The setup speaks English and Russian: the **RU / EN** switch is in its top-right corner (it starts in your system language).
 
 Turntable installs for the current user (no admin rights) into `%LOCALAPPDATA%\Turntable`. Your library lives in `%APPDATA%\app.turntable.player`.
 
@@ -90,9 +104,21 @@ source/
 
 Turntable is young and made by one person. If something breaks, looks off, or you are missing a feature, write to me – every message gets read:
 
+- News and updates: [t.me/turntabletg](https://t.me/turntabletg)
 - Telegram: [@openwoundsdotcom](https://t.me/openwoundsdotcom)
 - Discord: `reinessant`
 
+## Committing (guide for AI assistants and contributors)
+
+The repository root holds the docs; all code lives in [`source/`](source). Releases are published from here.
+
+1. **Check first.** In `source/` run `pnpm build` (type-check + Vite build). After Rust changes also `cargo check` in `source/src-tauri`. Don't commit a tree that doesn't build.
+2. **Version.** For a user-visible change bump the patch version in all five places: `source/package.json`, `source/src-tauri/tauri.conf.json`, `source/src-tauri/Cargo.toml`, `source/installer/src-tauri/Cargo.toml`, `source/installer/src-tauri/tauri.conf.json`. Update the installer file name in *Download and install* above.
+3. **Stage deliberately.** `git status` first, then `git add` the files you mean. Never commit `target/`, `node_modules/`, `dist/`, `release/`, `*.exe`, `*.pdb`, `.env.local`, videos or other big binaries (nothing over a few MB without a reason). Keep screenshots small (WebP, 1920×1080).
+4. **One logical change per commit.** Message in English, imperative mood, a short subject (up to ~70 characters) and a body listing what changed and why when it isn't obvious: `Add playlist editor`, `Fix hiss while paused`, `Bump version to 0.1.3`.
+5. **Don't rewrite history.** Plain `git push origin main`. No `--force`, no rebasing pushed commits. Only push when the owner asks.
+6. **Releases.** Build the installer with `pwsh source/installer/build.ps1`, then attach `Turntable-Setup-<version>.exe` (and a source zip) to a GitHub Release tagged `v<version>`. The `.exe` is never committed.
+7. **Report.** Say what changed, the new version, the commit hash and whether it was pushed.
 ---
 
 # Turntable (по-русски)
@@ -102,7 +128,12 @@ Turntable is young and made by one person. If something breaks, looks off, or yo
 - **Крейт и проигрыватель** – листайте альбомы, опускайте иглу, перематывайте перетаскиванием тонарма, придерживайте пластинку и скретчите.
 - **Синхронные тексты** – находятся сами на [LRCLIB](https://lrclib.net) и сохраняются на компьютере, поэтому работают и без интернета. Либо положите `.lrc` рядом с треком.
 - **Рэк плагинов** – семь студийных приборов между пластинкой и громкостью: два эквалайзера, компрессор, ламповый клиппер, сэмплер-краш, фильтр и ленточное эхо.
-- **Мини-плеер и трей** – `Ctrl+M` складывает приложение в кассетник поверх всех окон. Меню в трее и глобальные клавиши управляют музыкой, пока окно спрятано.
+- **Плейлисты** – собираются из треков любых ваших альбомов, обложка-коллаж делается сама. Альбомы и файлы остаются как есть, плейлист только ссылается на них.
+- **Жанры** – до трёх тегов на альбом или плейлист, фильтр в крейте и поиск по жанрам, много андеграунда (rage, plugg, phonk, digicore, hyperpop и другие).
+- **Статистика** – время на проигрывателе, минуты по дням, ваши часы прослушивания, тепловая карта за полгода, топ альбомов и треков, серии дней.
+- **Шафл и луп** – в альбоме шафл остаётся внутри него; в мини-плеере и трее можно выбрать: выкл, альбом или все альбомы.
+- **Русский и английский** – весь интерфейс, переключается в настройках.
+- **Мини-плеер и трей** – `Ctrl+M` складывает приложение в кассетник поверх всех окон, его размер можно менять. Меню в трее и глобальные клавиши управляют музыкой, пока окно спрятано.
 - **Поиск** – `Ctrl+K` ищет альбомы, исполнителей и треки, даже в неправильной раскладке и с опечатками.
 - **Настройте под себя** – цвета проигрывателя и пластинки, корпус, дисплей и кассета мини-плеера, пыль в воздухе, запуск вместе с Windows.
 
@@ -110,7 +141,7 @@ Windows 10/11, x64. Файлы копируются в собственную п
 
 ## Скачать и установить
 
-1. Откройте страницу **[Releases](../../releases)** этого репозитория и скачайте **`Turntable-Setup-0.1.0.exe`** из блока *Assets*.
+1. Откройте страницу **[Releases](../../releases)** этого репозитория и скачайте **`Turntable-Setup-0.1.2.exe`** из блока *Assets*.
 2. Запустите его. Windows может написать *«Система Windows защитила ваш компьютер»* – установщик пока не подписан сертификатом: нажмите **Подробнее → Выполнить в любом случае** (*More info → Run anyway*).
 3. Нажмите **Install** (**Установить**). Установка занимает несколько секунд; оставьте галочку «Запустить после установки» – Turntable запустится сам. Язык установщика переключается кнопками **RU / EN** в правом верхнем углу (по умолчанию – язык системы).
 
@@ -138,5 +169,6 @@ Windows 10/11, x64. Файлы копируются в собственную п
 
 Turntable ещё молодой, и делает его один человек. Если что-то ломается, выглядит криво или не хватает фичи – пишите сюда, читаю всё:
 
+- News and updates: [t.me/turntabletg](https://t.me/turntabletg)
 - Telegram: [@openwoundsdotcom](https://t.me/openwoundsdotcom)
 - Discord: `reinessant`

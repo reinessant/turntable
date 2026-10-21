@@ -7,17 +7,17 @@ const $ = (s) => document.querySelector(s);
 
 /* ---------------------------------------------------------------- words */
 const STR = { ru: {
-  kicker: "Установка · v0.1.0", tagline: "Твои альбомы — на проигрывателе.", install: "Установить", reinstall: "Переустановить",
+  kicker: "Установка", kickerUpdate: "Обновление", tagline: "Твои альбомы — на проигрывателе.", install: "Установить", update: "Обновить", reinstall: "Переустановить",
   desktop: "Ярлык на рабочем столе", launchAfter: "Запустить после установки", path: "Папка", hint: "Хватай пластинку — она скретчится",
   steps: ["Распаковка…", "Копируем файлы…", "Проверяем WebView2…", "Создаём ярлыки…", "Почти готово…"],
-  done: "Готово", doneSub: "Turntable установлен. Пластинка ждёт.", launch: "Запустить Turntable", close: "Закрыть",
+  done: "Готово", doneSub: "Turntable установлен. Пластинка ждёт.", doneUpdated: "Turntable обновлён. Пластинка ждёт.", launch: "Запустить Turntable", close: "Закрыть",
   running: "Turntable открыт", runningSub: "Закрой его, чтобы установка смогла его обновить.", closeApp: "Закрыть Turntable", back: "Назад",
   failed: "Не получилось", retry: "Ещё раз", classic: "Обычный установщик"
 }, en: {
-  kicker: "Setup · v0.1.0", tagline: "Your albums, on a record player.", install: "Install", reinstall: "Reinstall",
+  kicker: "Setup", kickerUpdate: "Update", tagline: "Your albums, on a record player.", install: "Install", update: "Update", reinstall: "Reinstall",
   desktop: "Desktop shortcut", launchAfter: "Open when done", path: "Folder", hint: "Grab the record — it scratches",
   steps: ["Unpacking…", "Copying files…", "Checking WebView2…", "Creating shortcuts…", "Almost there…"],
-  done: "Done", doneSub: "Turntable is installed. The record is waiting.", launch: "Launch Turntable", close: "Close",
+  done: "Done", doneSub: "Turntable is installed. The record is waiting.", doneUpdated: "Turntable is updated. The record is waiting.", launch: "Launch Turntable", close: "Close",
   running: "Turntable is open", runningSub: "Close it so the setup can update it.", closeApp: "Close Turntable", back: "Back",
   failed: "Setup failed", retry: "Try again", classic: "Classic setup"
 } };
@@ -25,14 +25,19 @@ const STR = { ru: {
 const saved = (() => { try { return localStorage.getItem("setup-lang"); } catch { return null; } })();
 let lang = saved === "ru" || saved === "en" ? saved : /^(ru|uk|be|kk)/i.test(navigator.language || "") ? "ru" : "en";
 let S = STR[lang];
-let isInstalled = false;
-const text = { kicker: "kicker", tagline: "tagline", optDesktopText: "desktop", optLaunchText: "launchAfter", pathLabel: "path", hint: "hint",
+/* what the button says: nothing installed → Install; an older Turntable (or one whose version is unknown) → Update;
+   the same version → Reinstall */
+let mode = "install", version = "";
+const older = (a, b) => { const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
+const text = { tagline: "tagline", optDesktopText: "desktop", optLaunchText: "launchAfter", pathLabel: "path", hint: "hint",
   doneTitle: "done", doneSub: "doneSub", launchBtn: "launch", doneClose: "close", runTitle: "running", runSub: "runningSub", closeAppBtn: "closeApp", runBack: "back",
   errTitle: "failed", retryBtn: "retry", classicBtn: "classic" };
 function applyLang() {
   S = STR[lang];
   for (const [id, key] of Object.entries(text)) $("#" + id).textContent = S[key];
-  $("#installBtn").textContent = isInstalled ? S.reinstall : S.install;
+  $("#kicker").textContent = (mode === "update" ? S.kickerUpdate : S.kicker) + (version ? " · v" + version : "");
+  $("#installBtn").textContent = S[mode];
+  $("#doneSub").textContent = mode === "update" ? S.doneUpdated : S.doneSub;
   document.documentElement.lang = lang;
   document.querySelectorAll("#langSwitch button").forEach((b) => { const on = b.dataset.l === lang; b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); });
 }
@@ -164,7 +169,7 @@ addEventListener("contextmenu", (e) => e.preventDefault());
 
 /* ---------------------------------------------------------------- open */
 (async () => {
-  try { const st = await invoke("status"); $("#pathText").textContent = st.dir; if (st.installed) { isInstalled = true; applyLang(); } }
+  try { const st = await invoke("status"); $("#pathText").textContent = st.dir; version = st.version || ""; if (st.installed) mode = st.installed_version && !older(st.installed_version, version) ? "reinstall" : "update"; applyLang(); }
   catch { $("#pathText").textContent = "%LOCALAPPDATA%\\Turntable"; }
   await document.fonts.ready;
   requestAnimationFrame(() => requestAnimationFrame(async () => {

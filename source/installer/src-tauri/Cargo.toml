@@ -1,10 +1,8 @@
 [package]
 name = "turntable-setup"
-version = "0.1.0"
+version = "0.1.2"
 description = "Turntable installer"
-authors = ["reinessant"]
-license = "MIT"
-repository = "https://github.com/reinessant/turntable"
+authors = ["Turntable"]
 edition = "2021"
 
 [build-dependencies]

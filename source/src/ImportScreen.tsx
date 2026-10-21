@@ -8,6 +8,8 @@ import { neutralProfile, prepareCover } from "./color";
 import { asset } from "./library";
 import { useApp } from "./state";
 import { Icon } from "./PlayerScreen";
+import { GenrePicker } from "./GenrePicker";
+import { count, t } from "./lang";
 import type { Album, DraftTrack } from "./types";
 
 const time = (seconds: number) => Math.floor(seconds / 60) + ":" + String(Math.floor(seconds % 60)).padStart(2, "0");
@@ -16,6 +18,7 @@ export function ImportScreen({ album, initialPaths, onClose }: Props) {
   const [title, setTitle] = useState(album?.title || "");
   const [artist, setArtist] = useState(album?.artist || "");
   const [year, setYear] = useState(album?.year?.toString() || "");
+  const [genres, setGenres] = useState<string[]>(album?.genres ?? []);
   const [tracks, setTracks] = useState<DraftTrack[]>(album?.tracks.map((track) => ({
     // the track's own .lrc travels with it, or saving the edit would drop the lyrics of every track
     id: track.id, title: track.title, duration: track.duration, sourcePath: track.filePath, lyricsSource: track.lyricsPath
@@ -47,7 +50,7 @@ export function ImportScreen({ album, initialPaths, onClose }: Props) {
       }
       if (expanded.cover && !cover && !album?.coverPath) {
         const blob = await readBlob(expanded.cover);
-        setCover(blob); setCoverUrl(URL.createObjectURL(blob)); setCoverSource("cover found in folder");
+        setCover(blob); setCoverUrl(URL.createObjectURL(blob)); setCoverSource(t("Cover found in folder"));
       }
       const parsed = [];
       for (let i = 0; i < expanded.audio.length; i++) {
@@ -62,11 +65,11 @@ export function ImportScreen({ album, initialPaths, onClose }: Props) {
           if (!cover && !album?.coverPath && item.picture) {
             setCover((current) => current || item.picture!);
             setCoverUrl((current) => current || URL.createObjectURL(item.picture!));
-            setCoverSource("cover taken from file tags");
+            setCoverSource(t("Cover taken from file tags"));
           }
-        } catch {
+        } catch (cause) {
           setTracks((current) => current.filter((track) => track.id !== placeholder.id));
-          setWarning((current) => current + " Could not read " + cleanName(path) + ".");
+          setWarning((current) => current + " " + t("Could not read") + " " + cleanName(path) + " (" + (cause instanceof Error ? cause.message : String(cause)) + ").");
         }
       }
       const albumTags = parsed.map((item) => item.album).filter(Boolean);
@@ -79,6 +82,13 @@ export function ImportScreen({ album, initialPaths, onClose }: Props) {
         setArtist([...counts].sort((a, b) => b[1] - a[1])[0][0]);
       }
       if (!year) setYear(String(parsed.find((item) => item.year)?.year || ""));
+      // genres from the file tags: the three most common across the tracks
+      if (!genres.length) {
+        const counts = new Map<string, number>();
+        for (const item of parsed) for (const genre of item.genres ?? []) counts.set(genre, (counts.get(genre) || 0) + 1);
+        const top = [...counts].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([genre]) => genre);
+        if (top.length) setGenres(top);
+      }
       if (!album && parsed.length && parsed.every((item) => item.track.trackNumber)) {
         const numbers = new Map(parsed.map((item) => [item.track.id, item.track.trackNumber!]));
         setTracks((current) => [...current].sort((a, b) => (numbers.get(a.id) || 0) - (numbers.get(b.id) || 0)));
@@ -89,9 +99,9 @@ export function ImportScreen({ album, initialPaths, onClose }: Props) {
           ...track, lyricsSource: map.get(cleanName(track.sourcePath).toLowerCase()) || map.get(track.title.toLowerCase()) || track.lyricsSource
         })));
       }
-      if (expanded.skipped) setWarning(expanded.skipped + " files skipped — unsupported format");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not read files"); }
-  }, [album?.coverPath, artist, cover, title, year]);
+      if (expanded.skipped) setWarning(expanded.skipped + " " + t("files skipped — unsupported format"));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : t("Could not read files")); }
+  }, [album?.coverPath, artist, cover, genres, title, year]);
   useEffect(() => {
     if (initialPaths?.length) void ingest(initialPaths);
   }, []);
@@ -123,28 +133,28 @@ export function ImportScreen({ album, initialPaths, onClose }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [removed]);
   async function save() {
-    if (!title.trim()) { titleRef.current?.focus(); setError("Album title is required"); return; }
-    if (!artist.trim()) { artistRef.current?.focus(); setError("Artist is required"); return; }
-    if (!tracks.length) { setError("Add at least one track"); return; }
+    if (!title.trim()) { titleRef.current?.focus(); setError(t("Album title is required")); return; }
+    if (!artist.trim()) { artistRef.current?.focus(); setError(t("Artist is required")); return; }
+    if (!tracks.length) { setError(t("Add at least one track")); return; }
     setSaving(true); setError("");
     try {
       const prepared = cover ? await prepareCover(cover) : undefined;
-      if (prepared?.small) setWarning("Cover is smaller than 400 px and may appear soft.");
+      if (prepared?.small) setWarning(t("Cover is smaller than 400 px and may appear soft."));
       const saved = await saveAlbum({
         id: album?.id || crypto.randomUUID(), title, artist,
-        year: year ? Number(year) : undefined, colors: prepared?.colors || album?.colors || neutralProfile,
+        year: year ? Number(year) : undefined, genres, colors: prepared?.colors || album?.colors || neutralProfile,
         tracks, coverBytes: prepared?.cover, thumbBytes: prepared?.thumb,
         existingCover: prepared ? undefined : album?.coverPath || undefined
       });
       if (prepared) URL.revokeObjectURL(prepared.url);
       onClose(saved);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save album"); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : t("Could not save album")); }
     finally { setSaving(false); }
   }
   async function removeAlbum() {
     if (!album) return;
     try { await deleteAlbum(album.id); onClose(undefined, true); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not delete album"); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : t("Could not delete album")); }
   }
   const onDragMove = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (!dragRef.current) return;
@@ -162,44 +172,45 @@ export function ImportScreen({ album, initialPaths, onClose }: Props) {
   };
   return <div className="screen import-view">
     <header className="header">
-      <button className="pill-btn" onClick={() => saving ? void cancelImport() : onClose()}><Icon name="x" size={14} />Cancel</button>
-      <div className="right"><span className="status">{tracks.length} {tracks.length === 1 ? "track" : "tracks"} · {time(tracks.reduce((sum, track) => sum + track.duration, 0))} · {saving ? "saving" : tracks.length && title.trim() && artist.trim() ? "ready" : "incomplete"}</span>
+      <button className="pill-btn" onClick={() => saving ? void cancelImport() : onClose()}><Icon name="x" size={14} />{t("Cancel")}</button>
+      <div className="right"><span className="status">{count(tracks.length, "track")} · {time(tracks.reduce((sum, track) => sum + track.duration, 0))} · {saving ? t("Saving") : tracks.length && title.trim() && artist.trim() ? t("Ready") : t("Incomplete")}</span>
         <button className="pill-btn solid" onClick={() => void save()} disabled={saving || !title.trim() || !artist.trim() || !tracks.length}>
-          <Icon name="check" size={14} />{album ? "Save changes" : "Save album"}
+          <Icon name="check" size={14} />{album ? t("Save changes") : t("Save album")}
         </button>
       </div>
     </header>
     <div className="wrap">
-      <h1 className="h1">{album ? "Edit album" : "New album"} <small>{tracks.length ? tracks.length + " files dropped" : "Drop audio files to begin"}</small></h1>
+      <h1 className="h1">{album ? t("Edit album") : t("New album")} <small>{tracks.length ? count(tracks.length, "file") + " " + t("dropped") : t("Drop audio files to begin")}</small></h1>
       <aside>
         <div className={"cover cover-zone" + (coverUrl ? "" : " empty")}>
-          {coverUrl ? <img src={coverUrl} alt="Album cover" /> : <div className="cover-placeholder"><Icon name="image" size={32} /><span>Drop cover artwork</span></div>}
+          {coverUrl ? <img src={coverUrl} alt={t("Album cover")} /> : <div className="cover-placeholder"><Icon name="image" size={32} /><span>{t("Drop cover artwork")}</span></div>}
           <button className="pill-btn replace" onClick={() => void chooseCover().then((path) => path ? ingest([path], true) : undefined)}>
-            <Icon name="image" size={14} />{coverUrl ? "Replace" : "Choose cover"}
+            <Icon name="image" size={14} />{coverUrl ? t("Replace") : t("Choose cover")}
           </button>
         </div>
-        {coverUrl && <div className="cover-note"><Icon name="check" size={14} />Applied to all {tracks.length} {tracks.length === 1 ? "track" : "tracks"}</div>}
+        {coverUrl && <div className="cover-note"><Icon name="check" size={14} />{t("Applied to all")} {count(tracks.length, "track")}</div>}
         <div className="side-actions">
-          <button className="pill-btn" onClick={() => setPasteOpen(true)}><Icon name="clipboard-text" size={14} />Paste track titles</button>
-          <button className="pill-btn" onClick={() => void chooseAudio().then((paths) => ingest(paths))}><Icon name="plus" size={14} />Add more files</button>
-          {album && (confirmDelete ? <div className="delete-choice">Delete permanently? <button className="pill-btn" onClick={() => void removeAlbum()}>Delete</button><button className="pill-btn" onClick={() => setConfirmDelete(false)}>Keep</button></div>
-            : <button className="pill-btn" onClick={() => setConfirmDelete(true)}>Delete album</button>)}
+          <button className="pill-btn" onClick={() => setPasteOpen(true)}><Icon name="clipboard-text" size={14} />{t("Paste track titles")}</button>
+          <button className="pill-btn" onClick={() => void chooseAudio().then((paths) => ingest(paths))}><Icon name="plus" size={14} />{t("Add more files")}</button>
+          {album && (confirmDelete ? <div className="delete-choice">{t("Delete permanently?")} <button className="pill-btn" onClick={() => void removeAlbum()}>{t("Delete")}</button><button className="pill-btn" onClick={() => setConfirmDelete(false)}>{t("Keep")}</button></div>
+            : <button className="pill-btn" onClick={() => setConfirmDelete(true)}>{t("Delete album")}</button>)}
         </div>
         {coverSource && <p className="import-feedback">{coverSource}</p>}
         {warning && <p className="import-feedback">{warning}</p>}
         {error && <p className="import-feedback error">{error}</p>}
-        {saving && <p className="import-feedback">Copying {progress.done} of {progress.total} files…</p>}
+        {saving && <p className="import-feedback">{t("Copying")} {progress.done} {t("of")} {progress.total} {t("files")}…</p>}
       </aside>
       <main>
         <div className="fields">
-          <div className="field"><label className="micro" htmlFor="album-title">Album title</label><input className="in" id="album-title" ref={titleRef} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Album title" /></div>
-          <div className="field"><label className="micro" htmlFor="album-artist">Artist</label><input className="in" id="album-artist" ref={artistRef} value={artist} onChange={(event) => setArtist(event.target.value)} placeholder="Artist" /></div>
-          <div className="field"><label className="micro" htmlFor="album-year">Year</label><input className="in" id="album-year" value={year} onChange={(event) => setYear(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="—" /></div>
+          <div className="field"><label className="micro" htmlFor="album-title">{t("Album title")}</label><input className="in" id="album-title" ref={titleRef} value={title} onChange={(event) => setTitle(event.target.value)} placeholder={t("Album title")} /></div>
+          <div className="field"><label className="micro" htmlFor="album-artist">{t("Artist")}</label><input className="in" id="album-artist" ref={artistRef} value={artist} onChange={(event) => setArtist(event.target.value)} placeholder={t("Artist")} /></div>
+          <div className="field"><label className="micro" htmlFor="album-year">{t("Year")}</label><input className="in" id="album-year" value={year} onChange={(event) => setYear(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="—" /></div>
         </div>
-        <div className="list-head"><span className="micro">Tracks</span><div className="right"><span className="micro" style={{ color: "var(--ink-4)" }}>Drag to reorder · click a title to rename</span></div></div>
+        <div className="field genre-field"><label className="micro">{t("Genres · up to three")}</label><GenrePicker value={genres} onChange={setGenres} /></div>
+        <div className="list-head"><span className="micro">{t("Tracks")}</span><div className="right"><span className="micro" style={{ color: "var(--ink-4)" }}>{t("Drag to reorder · click a title to rename")}</span></div></div>
         <div className="rows">
           {tracks.map((track, index) => <div className="row" key={track.id}>
-            <button className="drag" aria-label={"Move track " + (index + 1)}
+            <button className="drag" aria-label={t("Move track") + " " + (index + 1)}
               onPointerDown={(event) => { dragRef.current = { index, y: event.clientY }; event.currentTarget.setPointerCapture(event.pointerId); }}
               onPointerMove={onDragMove} onPointerUp={() => { dragRef.current = null; }}><Icon name="dots-six-vertical" size={16} /></button>
             <span className="mono">{String(index + 1).padStart(2, "0")}</span>
@@ -207,26 +218,26 @@ export function ImportScreen({ album, initialPaths, onClose }: Props) {
               onKeyDown={(event) => { if (event.key === "Enter") (event.currentTarget.closest(".row")?.nextElementSibling?.querySelector("input.t") as HTMLInputElement | null)?.focus(); }} />
               <span className="src">{track.sourcePath.split(/[\\/]/).pop()}</span></span>
             <span className="mono">{track.duration ? time(track.duration) : "—"}</span>
-            <button className="icon-btn x" aria-label={"Remove " + track.title} style={{ width: 28, height: 28 }} onClick={() => {
+            <button className="icon-btn x" aria-label={t("Remove") + " " + track.title} style={{ width: 28, height: 28 }} onClick={() => {
               setTracks((current) => current.filter((item) => item.id !== track.id));
               setRemoved({ track, index, at: Date.now() });
             }}><Icon name="x" size={14} /></button>
           </div>)}
         </div>
-        <button className="drop" onClick={() => void chooseAudio().then((paths) => ingest(paths))}><Icon name="upload-simple" />Drop more audio files here, or <u>browse</u></button>
-        {removed && Date.now() - removed.at < 10000 && <p className="import-feedback">Track removed · Ctrl+Z to undo</p>}
+        <button className="drop" onClick={() => void chooseAudio().then((paths) => ingest(paths))}><Icon name="upload-simple" />{t("Drop more audio files here, or")} <u>{t("browse")}</u></button>
+        {removed && Date.now() - removed.at < 10000 && <p className="import-feedback">{t("Track removed · Ctrl+Z to undo")}</p>}
       </main>
     </div>
     {pasteOpen && <div className="paste-overlay"><div className="paste-dialog">
-      <h2>Paste track titles</h2><p>One title per line, in album order.</p>
-      <textarea autoFocus value={pasteText} onChange={(event) => setPasteText(event.target.value)} placeholder={"First track\nSecond track"} />
-      <div><button className="pill-btn" onClick={() => setPasteOpen(false)}>Cancel</button>
+      <h2>{t("Paste track titles")}</h2><p>{t("One title per line, in album order.")}</p>
+      <textarea autoFocus value={pasteText} onChange={(event) => setPasteText(event.target.value)} placeholder={t("First track") + "\n" + t("Second track")} />
+      <div><button className="pill-btn" onClick={() => setPasteOpen(false)}>{t("Cancel")}</button>
         <button className="pill-btn solid" onClick={() => {
           const lines = pasteText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-          if (!lines.length) { setError("Paste at least one title"); return; }
+          if (!lines.length) { setError(t("Paste at least one title")); return; }
           setTracks((current) => current.map((track, index) => lines[index] ? { ...track, title: lines[index] } : track));
           setPasteOpen(false); setPasteText("");
-        }}>Apply titles</button></div>
+        }}>{t("Apply titles")}</button></div>
     </div></div>}
   </div>;
 }

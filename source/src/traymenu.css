@@ -53,7 +53,12 @@ html.traymenu-view, html.traymenu-view body, html.traymenu-view #root { backgrou
 .tm-seek:hover b, .tm-seek.dragging b { opacity: 1; }
 .tm-times { display: flex; justify-content: space-between; margin-top: -6px; color: rgba(var(--tm-ink), .42); font-size: 11px; font-variant-numeric: tabular-nums; }
 
-.tm-transport { display: flex; justify-content: center; align-items: center; gap: 22px; padding: 2px 0; }
+.tm-transport { display: flex; justify-content: center; align-items: center; gap: 12px; padding: 2px 0; }
+/* shuffle / repeat flank the transport: small, dim when off, accent-coloured with a dot when on */
+.tm-transport button.tm-mode { position: relative; width: 34px; height: 34px; color: rgba(var(--tm-ink), .38); }
+.tm-transport button.tm-mode svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+.tm-transport button.tm-mode.on, .tm-transport button.tm-mode.on:hover { color: var(--tm-accent); }
+.tm-transport button.tm-mode.on::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: currentColor; }
 .tm-transport button { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: rgba(var(--tm-ink), .78); transition: background 140ms, color 140ms, transform 90ms; }
 .tm-transport button:hover { background: rgba(var(--tm-ink), .07); color: rgb(var(--tm-ink)); }
 .tm-transport button:active { transform: scale(.93); }

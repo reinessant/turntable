@@ -8,12 +8,14 @@ import { quickSettings, useSettings } from "./settings";
 import type { Settings } from "./settings";
 import { useApp } from "./state";
 import { useScrub } from "./scrub";
+import { RepeatIcon, ShuffleIcon } from "./PlayModeIcons";
+import { t, useLang } from "./lang";
 import "./traymenu.css";
 
 const sendEvent = (action: string) => { if (isTauri()) void emit("tray", action); };
 const time = (s: number) => { const v = Math.max(0, Math.floor(s || 0)); return Math.floor(v / 60) + ":" + String(v % 60).padStart(2, "0"); };
 const clean = (t: string) => t.replace(/\s+\(?(?:prod\.?|ft\.?|feat\.?)\s.*$/i, "").replace(/^[^-—]{1,30}\s[-—]\s(?=\S)/, "");
-const EMPTY: NowPlaying = { album: "", artist: "", track: "", cover: "", index: 0, count: 0, playing: false, position: 0, duration: 0, volume: .78, mini: false, loaded: false, hue: null };
+const EMPTY: NowPlaying = { album: "", artist: "", track: "", cover: "", index: 0, count: 0, playing: false, position: 0, duration: 0, volume: .78, mini: false, loaded: false, shuffle: "off", repeat: "off", hue: null };
 
 /** The menu's look from the settings. Its own window reads the saved copy and follows changes made in the
     main window (the `storage` event); the settings screen's live preview reads the store directly. */
@@ -38,6 +40,7 @@ export function TrayMenu({ preview = false }: { preview?: boolean }) {
   // the menu folds away after a pick (not the preview: that would hide the main window)
   const dismiss = () => { if (!preview && isTauri()) void getCurrentWindow().hide(); };
   const [opened, setOpened] = useState(0);
+  const lang = useLang((s) => s.lang);
   // position runs on between the main window's updates while playing
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -47,7 +50,7 @@ export function TrayMenu({ preview = false }: { preview?: boolean }) {
     }
     if (!isTauri()) {
       // dev in a plain browser: a sample of what the main window would send
-      setNow({ album: "Unmusique", artist: "Lucy Bedroque", track: "2010 justin bieber prod m8i", cover: "", index: 0, count: 17, playing: true, position: 42, duration: 112, volume: .78, mini: false, loaded: true, hue: 20 });
+      setNow({ album: "Unmusique", artist: "Lucy Bedroque", track: new URLSearchParams(location.search).has("long") ? "An extremely long track title that will not fit on one line (feat. somebody with a long name) [Remastered 2026]" : "2010 justin bieber prod m8i", cover: "", index: 0, count: 17, playing: true, position: 42, duration: 112, volume: .78, mini: false, loaded: true, shuffle: "all", repeat: "off", hue: 20 });
       setTick(performance.now());
       return;
     }
@@ -71,12 +74,12 @@ export function TrayMenu({ preview = false }: { preview?: boolean }) {
   const hue = now.hue;
   const theme = look.trayTheme === "album" && hue === null ? "dark" : look.trayTheme;
   const accent = look.trayAccent === "album" && hue === null ? "ink" : look.trayAccent;
-  return <div className={"tm tm-" + theme + " accent-" + accent} key={opened} style={{ "--h": hue ?? 0 } as React.CSSProperties}>
+  return <div className={"tm tm-" + theme + " accent-" + accent} key={opened + lang} style={{ "--h": hue ?? 0 } as React.CSSProperties}>
     <header className="tm-now">
       <div className="tm-cover">{now.cover ? <img src={now.cover} alt="" /> : <i />}</div>
       <div className="tm-text">
-        <b>{now.loaded ? clean(now.track) : "Nothing playing"}</b>
-        <span>{now.loaded ? `${now.artist} · ${now.album}` : "Pick a record in Turntable"}</span>
+        <b>{now.loaded ? clean(now.track) : t("Nothing playing")}</b>
+        <span>{now.loaded ? `${now.artist} · ${now.album}` : t("Pick a record in Turntable")}</span>
       </div>
     </header>
 
@@ -86,12 +89,18 @@ export function TrayMenu({ preview = false }: { preview?: boolean }) {
     <div className="tm-times"><span>{time(scrub.preview ?? position)}</span><span>{now.count ? `${now.index + 1} / ${now.count}` : ""}</span><span>{time(now.duration)}</span></div>
 
     <div className="tm-transport">
-      <button aria-label="Previous track" onClick={() => send("prev")}><svg viewBox="0 0 16 16"><path d="M4 3v10M13 3.5v9L6 8z" /></svg></button>
-      <button className="tm-play" aria-label={now.playing ? "Pause" : "Play"} onClick={() => send("play-pause")}>
+      {/* shuffle here means the whole library; repeat loops the album, then one track */}
+      <button className={"tm-mode" + (now.shuffle === "all" ? " on" : "")} aria-pressed={now.shuffle === "all"} aria-label={t("Shuffle all albums")}
+        title={now.shuffle === "all" ? t("Shuffling all albums — click to stop") : t("Shuffle all albums")} onClick={() => send("shuffle-all")}><ShuffleIcon size={17} /></button>
+      <button aria-label={t("Previous track")} onClick={() => send("prev")}><svg viewBox="0 0 16 16"><path d="M4 3v10M13 3.5v9L6 8z" /></svg></button>
+      <button className="tm-play" aria-label={now.playing ? t("Pause") : t("Play")} onClick={() => send("play-pause")}>
         {now.playing ? <svg viewBox="0 0 16 16"><rect x="4" y="3" width="2.8" height="10" rx=".6" /><rect x="9.2" y="3" width="2.8" height="10" rx=".6" /></svg>
           : <svg viewBox="0 0 16 16"><path d="M5 3v10l8.5-5z" /></svg>}
       </button>
-      <button aria-label="Next track" onClick={() => send("next")}><svg viewBox="0 0 16 16"><path d="M12 3v10M3 3.5v9L10 8z" /></svg></button>
+      <button aria-label={t("Next track")} onClick={() => send("next")}><svg viewBox="0 0 16 16"><path d="M12 3v10M3 3.5v9L10 8z" /></svg></button>
+      <button className={"tm-mode" + (now.repeat !== "off" ? " on" : "")} aria-pressed={now.repeat !== "off"}
+        aria-label={now.repeat === "off" ? t("Repeat") : now.repeat === "all" ? t("Repeat the album") : t("Repeat this track")}
+        title={now.repeat === "off" ? t("Repeat: off") : now.repeat === "all" ? t("Repeat: loop") : t("Repeat: this track")} onClick={() => send("repeat")}><RepeatIcon size={17} one={now.repeat === "one"} /></button>
     </div>
 
     <label className="tm-volume">
@@ -105,14 +114,14 @@ export function TrayMenu({ preview = false }: { preview?: boolean }) {
     <div className="tm-swap" role="tablist">
       <span className="tm-swap-pill" style={{ transform: `translateX(${now.mini ? 100 : 0}%)` }} />
       <button role="tab" aria-selected={!now.mini} className={now.mini ? "" : "on"} onClick={() => { send("full"); dismiss(); }}>
-        <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" /><circle cx="8" cy="8" r="1.4" /></svg>Full player</button>
+        <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" /><circle cx="8" cy="8" r="1.4" /></svg>{t("Full player")}</button>
       <button role="tab" aria-selected={now.mini} className={now.mini ? "on" : ""} onClick={() => { send("mini"); dismiss(); }}>
-        <svg viewBox="0 0 16 16"><rect x="2" y="3.5" width="12" height="9" rx="1.5" /><circle cx="5.5" cy="8" r="1.2" /><circle cx="10.5" cy="8" r="1.2" /></svg>Mini player</button>
+        <svg viewBox="0 0 16 16"><rect x="2" y="3.5" width="12" height="9" rx="1.5" /><circle cx="5.5" cy="8" r="1.2" /><circle cx="10.5" cy="8" r="1.2" /></svg>{t("Mini player")}</button>
     </div>
 
     <footer className="tm-foot">
-      <button onClick={() => { send("show"); dismiss(); }}>Open Turntable</button>
-      <button className="quit" onClick={() => send("quit")}>Quit</button>
+      <button onClick={() => { send("show"); dismiss(); }}>{t("Open Turntable")}</button>
+      <button className="quit" onClick={() => send("quit")}>{t("Quit")}</button>
     </footer>
   </div>;
 }

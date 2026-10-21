@@ -1,3 +1,4 @@
+import { t } from "./lang";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "./state";
 import { scConfigured, scConnect, scDisconnect } from "./soundcloud";
@@ -27,27 +28,27 @@ export function SoundCloudButton() {
     addEventListener("pointerdown", close); return () => removeEventListener("pointerdown", close);
   }, [menu]);
   const connect = async () => {
-    if (!scConfigured()) { useApp.setState({ message: "SoundCloud isn't set up in this build yet (app keys missing)" }); return; }
+    if (!scConfigured()) { useApp.setState({ message: t("SoundCloud isn't set up in this build yet (app keys missing)") }); return; }
     useApp.setState({ scBusy: true });
     try { useApp.setState({ scUser: await scConnect(), scBusy: false, scSheet: true }); }
     catch (error) { useApp.setState({ message: String(error instanceof Error ? error.message : error), scBusy: false }); }
   };
   if (!user) return <button className="pill-btn sc-btn" disabled={busy} onClick={() => void connect()}>
-    <ScLogo size={9} />{busy ? "Waiting for SoundCloud…" : "Connect SoundCloud"}</button>;
+    <ScLogo size={9} />{busy ? t("Waiting for SoundCloud…") : t("Connect SoundCloud")}</button>;
   return <div className="sc-account" ref={root}>
     <button className={"pill-btn sc-btn" + (menu ? " open" : "")} onClick={() => setMenu(!menu)} aria-expanded={menu}>
       {user.avatar ? <img className="sc-avatar" src={user.avatar} alt="" /> : <ScLogo size={9} />}
       <span>{user.username}</span>
     </button>
     {menu && <div className="sc-menu" role="menu">
-      <div className="sc-menu-head"><ScLogo size={8} /><span>Connected as <b>{user.username}</b></span></div>
-      <button role="menuitem" onClick={() => { setMenu(false); useApp.setState({ scSheet: true }); }}>Add from SoundCloud…</button>
+      <div className="sc-menu-head"><ScLogo size={8} /><span>{t("Connected as")} <b>{user.username}</b></span></div>
+      <button role="menuitem" onClick={() => { setMenu(false); useApp.setState({ scSheet: true }); }}>{t("Add from SoundCloud…")}</button>
       <button role="menuitem" onClick={async () => {
         setMenu(false);
         await scDisconnect();
         // records stay in the crate; they play again after the next sign-in
-        useApp.setState({ scUser: null, message: "SoundCloud disconnected" });
-      }}>Disconnect</button>
+        useApp.setState({ scUser: null, message: t("SoundCloud disconnected") });
+      }}>{t("Disconnect")}</button>
     </div>}
   </div>;
 }

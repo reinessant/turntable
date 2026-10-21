@@ -47,10 +47,13 @@ export function searchLibrary(albums: Album[], raw: string, limits = { albums: 6
   const artists = new Map<string, Album[]>();
   for (const album of albums) {
     const a = best(album.title), b = best(album.artist) * .85;
-    if (a || b) albumHits.push({ kind: "album", album, score: Math.max(a, b) + (a && b ? 50 : 0) });
+    // a genre tag finds the record too ("jazz" lists the jazz albums), a little below a name match
+    const g = Math.max(0, ...(album.genres ?? []).map((genre) => best(genre) * .6));
+    if (a || b || g) albumHits.push({ kind: "album", album, score: Math.max(a, b, g) + (a && b ? 50 : 0) });
     const name = album.artist.trim();
-    if (name) artists.set(name, [...(artists.get(name) ?? []), album]);
-    album.tracks.forEach((track, index) => { const s = best(track.title); if (s) trackHits.push({ kind: "track", album, track, index, score: s - 30 }); });
+    if (name && album.kind !== "playlist") artists.set(name, [...(artists.get(name) ?? []), album]);
+    // a playlist's tracks are already found under their own albums
+    if (album.kind !== "playlist") album.tracks.forEach((track, index) => { const s = best(track.title); if (s) trackHits.push({ kind: "track", album, track, index, score: s - 30 }); });
   }
   const artistHits: Hit[] = [];
   for (const [artist, list] of artists) { const s = best(artist); if (s) artistHits.push({ kind: "artist", artist, albums: list, score: s + 20 }); }

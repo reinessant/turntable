@@ -1,3 +1,4 @@
+import { t } from "./lang";
 import { useId, useRef, useState } from "react";
 import { toPosition, toValue } from "./fx";
 import type { ParamDef } from "./fx";
@@ -264,7 +265,7 @@ export function Valves() {
 export function PatchCable({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
   // per-instance ids: a mask referenced from a hidden unit in the stack would hide every cable
   const id = useId().replace(/:/g, "");
-  return <button className={"rk-cable" + (on ? " on" : "")} role="switch" aria-checked={on} aria-label={label} title={on ? "Unplug" : "Plug in"} onClick={onToggle}>
+  return <button className={"rk-cable" + (on ? " on" : "")} role="switch" aria-checked={on} aria-label={label} title={on ? t("Unplug") : t("Plug in")} onClick={onToggle}>
     <svg viewBox="0 0 440 480" aria-hidden="true">
       <defs>
         <linearGradient id={"pc-fade" + id} x1="0" y1="0" x2="0" y2="1"><stop offset=".62" stopColor="#fff" /><stop offset=".96" stopColor="#fff" stopOpacity="0" /></linearGradient>

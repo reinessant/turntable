@@ -16,7 +16,7 @@
 .tab-layer { z-index: 3; pointer-events: none; }
 .tabs {
   position: absolute; left: 50%; top: var(--page-top); transform: translateX(-50%); pointer-events: auto;
-  height: 32px; padding: 3px; display: grid; grid-template-columns: 104px 104px 104px; border-radius: var(--r-pill);
+  height: 32px; padding: 3px; display: grid; grid-template-columns: repeat(4, 104px); border-radius: var(--r-pill);
   background: var(--glass-bg); border: 1px solid var(--glass-border); box-shadow: var(--glass-hi), var(--glass-shadow);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
 }
@@ -34,9 +34,9 @@
 
 /* the record-player screens step aside while the rack is open; they come back with a short rise.
    opacity, not just visibility: the carousel discs and sleeves set their own visibility inline */
-.app:is(.section-plugins, .section-settings) :is(.crate-screen, .player-screen) { visibility: hidden; opacity: 0 !important; pointer-events: none; animation: none !important; }
+.app:is(.section-stats, .section-plugins, .section-settings) :is(.crate-screen, .player-screen) { visibility: hidden; opacity: 0 !important; pointer-events: none; animation: none !important; }
 /* the track-rail marks and carousel pieces set visibility inline; nothing of those screens may show over the rack */
-.app:is(.section-plugins, .section-settings) :is(.crate-screen, .player-screen) * { visibility: hidden !important; }
+.app:is(.section-stats, .section-plugins, .section-settings) :is(.crate-screen, .player-screen) * { visibility: hidden !important; }
 .app.tab-in .crate-screen, .app.tab-in .player-screen { animation: tab-in 420ms var(--ease-out) both; }
 @keyframes tab-in { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: 0 0; } }
 /* ---------- Track rail (player, top centre): one record, several tracks ----------

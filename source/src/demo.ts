@@ -67,6 +67,7 @@ export function seedDemoCrate(): Album[] {
       artist: ["Aster", "Vale", "North", "Kite", "Mira"][index % 5],
       year: 2020 + index % 6, coverPath, coverThumbPath: coverPath,
       colors, addedAt: Date.now() - index * 1000, liked: false,
+      genres: [["Hip-hop", "Rap", "Trap"], ["Electronic", "House"], ["Indie", "Rock"], ["Jazz", "Soul"], ["Ambient", "Lo-fi", "Electronic"], ["Pop", "Hyperpop"]][index % 6],
       tracks: Array.from({ length: 3 + index % 4 }, (_, trackIndex) => ({
         id: id + "-track-" + trackIndex, albumId: id, index: trackIndex,
         title: ["Prelude", "Drift", "Afterglow", "Contour", "Echo", "Nightfall"][trackIndex],

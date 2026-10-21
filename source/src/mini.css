@@ -8,6 +8,8 @@
 html:has(body.mini-mode), body.mini-mode, body.mini-mode #root { background: transparent !important; overflow: hidden; }
 body.mini-mode .backdrop, body.mini-mode .grain { display: none; }
 
+/* the size: drawn at 340 × 500 and zoomed (the settings preview keeps its own size) */
+body.mini-mode .cr:not(.cr-preview) { zoom: var(--mini-scale, 1); width: 340px; height: 500px; inset: auto; left: 0; top: 0; }
 .cr {
   --plastic: #1a1a1c; --edge: rgba(255,255,255,.07);
   /* the shell (black plastic by default) — the settings swap these for another colour (.shell-*) */
@@ -84,7 +86,7 @@ body.mini-mode .backdrop, body.mini-mode .grain { display: none; }
 .cr-lcd {
   position: relative; flex: none; height: 64px; padding: 7px 12px 14px; border-radius: 9px; display: flex; flex-direction: column; justify-content: center; gap: 5px;
   background: linear-gradient(180deg, #0b0a08, #14110d); box-shadow: inset 0 2px 5px rgba(0,0,0,.8), 0 1px 0 rgba(255,255,255,.07);
-  font: 500 11px/1.1 "Geist Mono", ui-monospace, monospace; color: var(--lcd); text-shadow: 0 0 6px rgba(var(--lcd-glow),.45);
+  font: 500 11.5px/1.1 "Inter Tight", system-ui, sans-serif; font-feature-settings: "tnum"; color: var(--lcd); text-shadow: 0 0 6px rgba(var(--lcd-glow),.45);
 }
 .cr-lcd-row { display: flex; align-items: center; gap: 10px; }
 .cr-time { flex: none; font-variant-numeric: tabular-nums; opacity: .85; }
@@ -141,7 +143,8 @@ body.mini-mode .backdrop, body.mini-mode .grain { display: none; }
 .cr-ribbon { position: absolute; left: 36px; right: 36px; bottom: 6px; height: 3px; background: #2a1d15; border-radius: 2px; opacity: .9; }
 
 /* ---------- piano keys ---------- */
-.cr-keys { flex: none; display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; padding: 6px 4px 2px; border-radius: 12px;
+/* six transport keys, then two latching switches (shuffle all albums, repeat) a little narrower */
+.cr-keys { flex: none; display: grid; grid-template-columns: repeat(6, 1.12fr) repeat(2, .92fr); gap: 4px; padding: 6px 4px 2px; border-radius: 12px;
   background: var(--well); box-shadow: inset 0 3px 6px rgba(0,0,0,.8); }
 .cr-key {
   position: relative; height: 54px; border-radius: 6px 6px 9px 9px; display: grid; place-items: center; color: rgba(var(--cr-ink),.72);
@@ -150,6 +153,8 @@ body.mini-mode .backdrop, body.mini-mode .grain { display: none; }
   transform: translateY(-4px); transition: transform 70ms ease-out, box-shadow 70ms ease-out, color 160ms;
 }
 .cr-key svg { width: 15px; height: 15px; fill: currentColor; }
+.cr-key[data-badge]::before { content: attr(data-badge); position: absolute; top: 4px; left: 0; right: 0; text-align: center; font: 700 6.5px/1 "Inter Tight", sans-serif; letter-spacing: .12em; color: rgb(var(--lcd-rgb)); text-shadow: 0 0 5px rgba(var(--lcd-glow), .7); }
+.cr-key.line svg { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .cr-key:hover { color: rgb(var(--cr-ink)); }
 .cr-key.down { transform: translateY(1px); box-shadow: 0 0 0 var(--key-base), 0 1px 2px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 0 1px rgba(0,0,0,.5); }
 .cr-key.latched { color: rgb(var(--cr-ink)); }

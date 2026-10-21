@@ -1,0 +1,101 @@
+/* =====================================================================
+   GENRES, PLAYLISTS — the genre chips and picker, the crate's genre filter, the playlist editor.
+   ===================================================================== */
+
+/* ---------- genre chips ---------- */
+.gp-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 99px; white-space: nowrap;
+  font: 550 12.5px/1 var(--font); color: var(--ink-2); background: rgba(var(--ink-rgb), .07); box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), .1);
+  transition: background var(--d-fast), color var(--d-fast);
+}
+button.gp-chip:hover { background: rgba(var(--ink-rgb), .13); color: var(--ink); }
+.gp-chip.on { color: var(--inverse); background: var(--ink); box-shadow: none; padding-right: 6px; }
+.gp-chip.on button { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; color: var(--inverse); opacity: .6; }
+.gp-chip.on button:hover { opacity: 1; background: rgba(0,0,0,.12); }
+.gp-chip.small { height: 22px; padding: 0 9px; font-size: 11.5px; }
+
+/* ---------- the picker: chosen chips + a box, then suggestions ---------- */
+.genre-picker { display: flex; flex-direction: column; gap: 12px; }
+.gp-chosen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 40px; padding-bottom: 10px; border-bottom: 1px solid var(--ink-5); transition: border-color var(--d-fast); }
+.gp-chosen:focus-within { border-color: var(--ink-3); }
+.gp-chosen input { flex: 1; min-width: 200px; font: 500 16px/1.2 var(--font); color: var(--ink); background: none; border: 0; outline: 0; padding: 6px 0; }
+.gp-chosen input::placeholder { color: var(--ink-4); }
+.gp-count { color: var(--ink-4); margin-left: auto; }
+.gp-suggest { display: flex; flex-wrap: wrap; gap: 6px; max-height: 98px; overflow-y: auto; padding-right: 4px; scrollbar-width: thin; scrollbar-color: rgba(var(--ink-rgb), .2) transparent; }
+.genre-field { margin-top: 28px; }
+.genre-field > label { display: block; margin-bottom: 8px; }
+
+/* ---------- the crate: genre filter pill + its menu ---------- */
+.genre-filter { position: relative; }
+.pill-btn.active { color: var(--inverse); background: var(--ink); border-color: transparent; padding-right: 8px; }
+.gf-clear { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: rgba(0,0,0,.14); margin-left: 2px; }
+.gf-clear:hover { background: rgba(0,0,0,.28); }
+.hleft { display: flex; align-items: center; gap: 12px; }
+.hleft .brand { margin-right: 14px; }
+.gf-menu {
+  position: absolute; left: 0; top: 40px; z-index: 30; width: 250px; max-height: 420px; overflow-y: auto; padding: 6px; border-radius: 16px;
+  --ink-rgb: 243, 241, 236; --ink: rgba(243,241,236,.94); --ink-2: rgba(243,241,236,.64); --ink-3: rgba(243,241,236,.42);
+  background: rgba(22,22,26,.86); border: 1px solid rgba(255,255,255,.1); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 20px 60px rgba(0,0,0,.5);
+  backdrop-filter: blur(34px) saturate(1.5); -webkit-backdrop-filter: blur(34px) saturate(1.5);
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.16) transparent; animation: sr-in 160ms var(--ease-out) both;
+}
+.gf-menu p { padding: 14px 12px; font: 500 13px/1.45 var(--font); color: var(--ink-3); }
+.gf-item { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: 10px; text-align: left; color: var(--ink-2); font: 550 13.5px/1.2 var(--font); }
+.gf-item em { font-style: normal; font-weight: 500; color: var(--ink-3); font-feature-settings: "tnum"; }
+.gf-item:hover { background: rgba(255,255,255,.07); color: var(--ink); }
+.gf-item.on { background: rgba(255,255,255,.12); color: var(--ink); }
+
+/* ---------- captions: playlist tag, genre chips ---------- */
+.pl-tag { padding: 3px 9px; border-radius: 99px; font: 650 10.5px/1 var(--font); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--ink-4); align-self: center; }
+.caption-meta { margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; }
+.caption-desc { font: var(--t-small); color: var(--ink-3); margin-left: 6px; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.album-genres { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.sr-genre { display: inline; }
+
+/* ---------- the playlist editor (shares the import screen's layout) ---------- */
+.playlist-view .t-static { font: var(--t-body-lg); color: var(--ink); padding: 6px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 420px; }
+.playlist-view .rows { max-height: 400px; }
+
+.pl-add { width: 760px; max-height: 760px; padding: 0; gap: 0; overflow: hidden; }
+.pl-add-head { display: flex; align-items: baseline; justify-content: space-between; padding: 24px 28px 12px; }
+.pl-add-head h2 { font: var(--t-title); font-stretch: var(--st-title); letter-spacing: var(--tr-title); color: var(--ink); }
+.pl-search { display: flex; align-items: center; gap: 12px; margin: 0 28px; padding: 0 14px; height: 46px; border-radius: 12px; color: var(--ink-3); background: rgba(var(--ink-rgb), .07); box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), .1); }
+.pl-search input { flex: 1; min-width: 0; height: 100%; font: 500 15px/1 var(--font); color: var(--ink); background: none; border: 0; outline: 0; }
+.pl-search input::placeholder { color: var(--ink-4); }
+.pl-albums { flex: 1; min-height: 0; max-height: 520px; overflow-y: auto; padding: 14px 20px 8px; scrollbar-width: thin; scrollbar-color: rgba(var(--ink-rgb), .2) transparent; }
+.pl-album { border-radius: 14px; }
+.pl-album + .pl-album { margin-top: 2px; }
+.pl-album-head { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 14px; }
+.pl-album-head:hover { background: var(--ink-6); }
+.pl-album-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; text-align: left; color: var(--ink); }
+.pl-album-open img { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex: none; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.pl-album-text { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.pl-album-text b { font: 550 14.5px/1.2 var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-album-text span { font: 500 12.5px/1.2 var(--font); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-tracks { margin: 2px 0 8px 66px; display: flex; flex-direction: column; }
+.pl-track { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 10px; text-align: left; color: var(--ink-2); }
+.pl-track:hover { background: var(--ink-6); color: var(--ink); }
+.pl-track .t { font: var(--t-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-track .mono { color: var(--ink-4); }
+.pl-track.on { color: var(--ink); }
+.pl-check { width: 18px; height: 18px; border-radius: 6px; display: grid; place-items: center; box-shadow: inset 0 0 0 1.5px var(--ink-4); color: var(--inverse); }
+.pl-track.on .pl-check { background: var(--ink); box-shadow: none; }
+.pl-none { padding: 40px 12px; text-align: center; font: var(--t-small); color: var(--ink-3); }
+.pl-add-foot { display: flex; justify-content: flex-end; padding: 16px 28px 22px; border-top: 1px solid var(--ink-5); }
+
+/* the crate's header (and the genre menu hanging from it) sits above the sleeves, whose z-index climbs with the stack */
+.crate-screen .header { z-index: 5000; }
+
+/* the add-tracks dialog reuses .paste-dialog, whose "> div" rule right-aligns a row of buttons: undo it for this one */
+.paste-dialog.pl-add > div { display: block; justify-content: initial; gap: 0; }
+.paste-dialog.pl-add > .pl-add-head { display: flex; justify-content: space-between; align-items: baseline; }
+.paste-dialog.pl-add > .pl-search { display: flex; gap: 12px; }
+.paste-dialog.pl-add > .pl-add-foot { display: flex; justify-content: flex-end; }
+.pill-btn.small { height: 26px; padding: 0 12px 0 9px; font-size: 12px; }
+.caption-meta .pill-btn.small { margin-right: 4px; }
+
+/* very long names must not push the layout around: the title and the artist are clamped to a few lines */
+.album-title, .caption h2 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; padding-bottom: .08em; }
+.album-title { -webkit-line-clamp: 3; }
+.caption h2 { -webkit-line-clamp: 2; }
+.album-artist { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
