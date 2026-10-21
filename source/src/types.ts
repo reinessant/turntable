@@ -50,6 +50,15 @@ export interface DraftTrack {
   trackNumber?: number;
   embeddedCover?: Blob;
 }
+export interface PlaylistFile {
+  id: string;
+  title: string;
+  artist: string;
+  duration: number;
+  filePath: string;
+  /** a small data: URL of the picture embedded in the file, if any (it feeds the playlist's collage) */
+  cover?: string;
+}
 /** A playlist as it is stored: the tracks are references (album + track), so editing or re-importing an album
     cannot break it. `cover`/`thumb` are data: URLs (a collage of the albums, or a picture the user chose). */
 export interface Playlist {
@@ -60,7 +69,10 @@ export interface Playlist {
   cover: string;
   thumb: string;
   colors: ColorProfile;
+  /** a track of the library is (album id, track id); a file of the playlist's own has the playlist's id as the album id */
   refs: { albumId: string; trackId: string }[];
+  /** audio files added straight to the playlist: copied into Turntable's folder, not part of any album */
+  files?: PlaylistFile[];
   addedAt: number;
   liked: boolean;
 }

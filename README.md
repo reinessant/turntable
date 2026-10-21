@@ -7,7 +7,7 @@
 - **Crate & turntable** – flip through your albums, drop the needle, drag the tonearm to wind to any moment, hold the platter to scratch.
 - **Synced lyrics** – found automatically on [LRCLIB](https://lrclib.net) and kept on your computer, so they work offline. Or drop an `.lrc` next to a track.
 - **Plugin rack** – seven studio-style units between the record and the volume: two equalizers, a leveling amp, a valve clipper, a sampler crusher, a lowpass filter and a tape echo.
-- **Playlists** – build them from tracks of any of your albums; a collage cover is made for you. Albums and files stay as they are, a playlist only points at them.
+- **Playlists** – build them from tracks of your albums or from any audio files on your computer; a collage cover is made for you. Albums stay as they are, a playlist only points at them; files you add are copied into Turntable's folder.
 - **Genres** – up to three tags per album or playlist, a genre filter in the crate and genre search, with plenty of underground ones (rage, plugg, phonk, digicore, hyperpop and more).
 - **Stats** – time on the turntable, minutes per day, your listening clock, a half-year heatmap, top albums and tracks, streaks and a few little facts.
 - **Shuffle & loop** – in an album shuffle stays inside it; in the mini player and the tray it can be off, album-only or across all albums.
@@ -128,7 +128,7 @@ The repository root holds the docs; all code lives in [`source/`](source). Relea
 - **Крейт и проигрыватель** – листайте альбомы, опускайте иглу, перематывайте перетаскиванием тонарма, придерживайте пластинку и скретчите.
 - **Синхронные тексты** – находятся сами на [LRCLIB](https://lrclib.net) и сохраняются на компьютере, поэтому работают и без интернета. Либо положите `.lrc` рядом с треком.
 - **Рэк плагинов** – семь студийных приборов между пластинкой и громкостью: два эквалайзера, компрессор, ламповый клиппер, сэмплер-краш, фильтр и ленточное эхо.
-- **Плейлисты** – собираются из треков любых ваших альбомов, обложка-коллаж делается сама. Альбомы и файлы остаются как есть, плейлист только ссылается на них.
+- **Плейлисты** – собираются из треков ваших альбомов или из любых аудиофайлов с компьютера, обложка-коллаж делается сама. Альбомы остаются как есть, плейлист только ссылается на них; добавленные файлы копируются в папку Turntable.
 - **Жанры** – до трёх тегов на альбом или плейлист, фильтр в крейте и поиск по жанрам, много андеграунда (rage, plugg, phonk, digicore, hyperpop и другие).
 - **Статистика** – время на проигрывателе, минуты по дням, ваши часы прослушивания, тепловая карта за полгода, топ альбомов и треков, серии дней.
 - **Шафл и луп** – в альбоме шафл остаётся внутри него; в мини-плеере и трее можно выбрать: выкл, альбом или все альбомы.

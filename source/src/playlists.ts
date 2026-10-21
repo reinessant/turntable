@@ -1,9 +1,10 @@
-/* Playlists: a list of tracks taken from albums already in the library. They are stored as references
-   (album id + track id) in playlists.json, with a small cover of their own, and shown in the crate like any other
+/* Playlists: a list of tracks taken from albums already in the library, plus audio files added to the playlist
+   itself (copied into playlist-files/, see `files`). They are stored as references (album id + track id; for a file
+   of its own the playlist id stands in for the album) in playlists.json, with a small cover of their own, and shown in the crate like any other
    record: `resolvePlaylist` turns one into an Album whose tracks point at the original files, so the deck, the mini
    player, search and stats need no special case. The sync below keeps those resolved copies in step with the albums
    (a re-imported album gets new files, a deleted one drops out of the list). */
-import { isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { load } from "@tauri-apps/plugin-store";
 import { neutralProfile, prepareCover } from "./color";
 import { readBlob } from "./library";
@@ -11,7 +12,7 @@ import { coverSrc } from "./PlayerScreen";
 import { crateAlbums, useApp } from "./state";
 import { withGenre } from "./genres";
 import { t, useLang } from "./lang";
-import type { Album, ColorProfile, Playlist, Track } from "./types";
+import type { Album, ColorProfile, Playlist, PlaylistFile, Track } from "./types";
 
 const LOCAL_KEY = "turntable.playlists";
 let storeFile: Awaited<ReturnType<typeof load>> | null = null;
@@ -29,12 +30,18 @@ export function cleanPlaylist(raw: unknown): Playlist | null {
   // the same track twice would be two rows with one key
   const seen = new Set<string>();
   const unique = refs.filter((ref) => { const key = ref.albumId + "/" + ref.trackId; if (seen.has(key)) return false; seen.add(key); return true; });
+  const files = (Array.isArray(p.files) ? p.files : []).flatMap((raw: unknown): PlaylistFile[] => {
+    const f = raw as Record<string, unknown> | null;
+    if (!f || typeof f.id !== "string" || !f.id || typeof f.filePath !== "string" || !f.filePath) return [];
+    return [{ id: f.id, title: typeof f.title === "string" && f.title ? f.title : "Track", artist: typeof f.artist === "string" ? f.artist : "",
+      duration: typeof f.duration === "number" && Number.isFinite(f.duration) ? f.duration : 0, filePath: f.filePath, ...(typeof f.cover === "string" && f.cover ? { cover: f.cover } : {}) }];
+  });
   const genres = (Array.isArray(p.genres) ? p.genres : []).reduce<string[]>((list, g: unknown) => typeof g === "string" ? withGenre(list, g) : list, []);
   return {
     id: p.id, title: p.title, description: typeof p.description === "string" ? p.description : "", genres,
     cover: typeof p.cover === "string" ? p.cover : "", thumb: typeof p.thumb === "string" ? p.thumb : "",
     colors: p.colors && typeof p.colors === "object" ? p.colors as ColorProfile : neutralProfile,
-    refs: unique, addedAt: typeof p.addedAt === "number" && Number.isFinite(p.addedAt) ? p.addedAt : 0, liked: p.liked === true
+    refs: unique, files, addedAt: typeof p.addedAt === "number" && Number.isFinite(p.addedAt) ? p.addedAt : 0, liked: p.liked === true
   };
 }
 export async function loadPlaylists(): Promise<void> {
@@ -51,21 +58,38 @@ async function persist(list: Playlist[]): Promise<void> {
   await file.set("playlists", list);
   await file.save();
 }
+/** Deletes the playlist's copied files that it no longer uses (all of them when `keep` is empty). */
+async function pruneFiles(id: string, keep: string[]): Promise<void> {
+  if (isTauri()) await invoke("prune_playlist_files", { playlistId: id, keep }).catch(() => undefined);
+}
+/** Copies freshly chosen files into the playlist's folder; returns the stored ones in the order given. */
+export async function storePlaylistFiles(playlistId: string, files: { id: string; sourcePath: string }[]): Promise<Record<string, string>> {
+  if (!files.length) return {};
+  const stored = await invoke<{ id: string; filePath: string }[]>("store_playlist_files", { playlistId, files });
+  return Object.fromEntries(stored.map((file) => [file.id, file.filePath]));
+}
 export async function savePlaylist(playlist: Playlist): Promise<void> {
   const list = [...useApp.getState().playlists.filter((item) => item.id !== playlist.id), playlist];
   useApp.setState({ playlists: list });
   await persist(list);
+  await pruneFiles(playlist.id, (playlist.files ?? []).map((file) => file.id));
 }
 export async function removePlaylist(id: string): Promise<void> {
   const list = useApp.getState().playlists.filter((item) => item.id !== id);
   useApp.setState({ playlists: list });
   await persist(list);
+  await pruneFiles(id, []);
 }
 
 export function resolvePlaylist(playlist: Playlist, albums: Album[]): Album {
   const byId = new Map(albums.map((album) => [album.id, album]));
   const tracks: Track[] = [];
   for (const ref of playlist.refs) {
+    if (ref.albumId === playlist.id) {                       // a file of the playlist's own
+      const file = playlist.files?.find((item) => item.id === ref.trackId);
+      if (file) tracks.push({ id: file.id, albumId: playlist.id, index: tracks.length + 1, title: file.title, duration: file.duration, filePath: file.filePath, artist: file.artist || undefined, albumTitle: playlist.title, sourceAlbumId: playlist.id });
+      continue;
+    }
     const source = byId.get(ref.albumId), track = source?.tracks.find((item) => item.id === ref.trackId);
     if (source && track) tracks.push({ ...track, albumId: playlist.id, index: tracks.length + 1, artist: source.artist, albumTitle: source.title, sourceAlbumId: source.id });
   }
@@ -118,16 +142,20 @@ export function startPlaylistSync(): () => void {
 }
 
 /* ---------------------------------------------------------------- covers */
-async function bitmapOf(album: Album): Promise<ImageBitmap | null> {
+/** What a collage is made of: an album (its cover), a picture, or a data: URL of one. */
+export type CollageSource = Album | Blob | string;
+async function bitmapOf(source: CollageSource): Promise<ImageBitmap | null> {
   try {
-    const path = album.coverPath;
+    if (source instanceof Blob) return await createImageBitmap(source);
+    if (typeof source === "string") return await createImageBitmap(await (await fetch(source)).blob());
+    const path = source.coverPath;
     if (!path) return null;
-    const blob = path.startsWith("data:") || path.startsWith("/") ? await (await fetch(coverSrc(album))).blob() : await readBlob(path);
+    const blob = path.startsWith("data:") || path.startsWith("/") ? await (await fetch(coverSrc(source))).blob() : await readBlob(path);
     return await createImageBitmap(blob);
   } catch { return null; }
 }
-/** A square collage of up to four of the albums' covers (one cover alone, two side by side, three or four in a grid). */
-export async function makeCollage(albums: Album[]): Promise<Blob | null> {
+/** A square collage of up to four covers (one cover alone, two side by side, three or four in a grid). */
+export async function makeCollage(albums: CollageSource[]): Promise<Blob | null> {
   const bitmaps = (await Promise.all(albums.slice(0, 4).map(bitmapOf))).filter((bitmap): bitmap is ImageBitmap => !!bitmap);
   if (!bitmaps.length) return null;
   const size = 800, canvas = document.createElement("canvas");
@@ -145,6 +173,26 @@ export async function makeCollage(albums: Album[]): Promise<Blob | null> {
   });
   bitmaps.forEach((bitmap) => bitmap.close());
   return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/jpeg", .88));
+}
+
+/** A cover for a playlist that has no pictures to make a collage from (files without artwork): a tinted record with the
+    first letter of its name. The tint comes from the name, so every such playlist looks its own. */
+export async function placeholderCover(title: string): Promise<Blob> {
+  const size = 800, canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  let hash = 0;
+  for (const ch of title) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  const hue = hash % 360;
+  const fill = ctx.createLinearGradient(0, 0, size, size);
+  fill.addColorStop(0, `hsl(${hue} 38% 30%)`); fill.addColorStop(1, `hsl(${(hue + 40) % 360} 42% 14%)`);
+  ctx.fillStyle = fill; ctx.fillRect(0, 0, size, size);
+  ctx.strokeStyle = "rgba(255,255,255,.07)"; ctx.lineWidth = 2;
+  for (let r = 150; r < 390; r += 24) { ctx.beginPath(); ctx.arc(size / 2, size / 2, r, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.fillStyle = "rgba(255,255,255,.88)";
+  ctx.font = "600 300px 'Inter Tight', 'Mona Sans', system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText((Array.from(title.trim())[0] ?? "♪").toUpperCase(), size / 2, size / 2 + 14);
+  return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("cover")), "image/jpeg", .88));
 }
 
 const dataUrl = (bytes: number[]) => new Promise<string>((resolve, reject) => {

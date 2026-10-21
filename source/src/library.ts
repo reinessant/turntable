@@ -18,8 +18,8 @@ export const cleanName = (path: string) => basename(path).replace(/\.[^.]+$/, ""
   .replace(/_/g, " ").replace(/\s+/g, " ").trim();
 export const naturalCompare = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 
-export async function chooseAudio(): Promise<string[]> {
-  const result = await open({ multiple: true, title: t("Add album tracks"),
+export async function chooseAudio(title = "Add album tracks"): Promise<string[]> {
+  const result = await open({ multiple: true, title: t(title),
     filters: [{ name: t("Audio"), extensions: [...audioExt] }] });
   return result ? Array.isArray(result) ? result : [result] : [];
 }

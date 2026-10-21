@@ -57,7 +57,8 @@ button.gp-chip:hover { background: rgba(var(--ink-rgb), .13); color: var(--ink);
 .playlist-view .rows { max-height: 400px; }
 
 .pl-add { width: 760px; max-height: 760px; padding: 0; gap: 0; overflow: hidden; }
-.pl-add-head { display: flex; align-items: baseline; justify-content: space-between; padding: 24px 28px 12px; }
+.pl-add-head { display: flex; align-items: center; gap: 14px; padding: 24px 28px 12px; }
+.pl-add-head .micro { margin: 0 14px 0 auto; }
 .pl-add-head h2 { font: var(--t-title); font-stretch: var(--st-title); letter-spacing: var(--tr-title); color: var(--ink); }
 .pl-search { display: flex; align-items: center; gap: 12px; margin: 0 28px; padding: 0 14px; height: 46px; border-radius: 12px; color: var(--ink-3); background: rgba(var(--ink-rgb), .07); box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), .1); }
 .pl-search input { flex: 1; min-width: 0; height: 100%; font: 500 15px/1 var(--font); color: var(--ink); background: none; border: 0; outline: 0; }
@@ -88,7 +89,7 @@ button.gp-chip:hover { background: rgba(var(--ink-rgb), .13); color: var(--ink);
 
 /* the add-tracks dialog reuses .paste-dialog, whose "> div" rule right-aligns a row of buttons: undo it for this one */
 .paste-dialog.pl-add > div { display: block; justify-content: initial; gap: 0; }
-.paste-dialog.pl-add > .pl-add-head { display: flex; justify-content: space-between; align-items: baseline; }
+.paste-dialog.pl-add > .pl-add-head { display: flex; justify-content: flex-start; align-items: center; }
 .paste-dialog.pl-add > .pl-search { display: flex; gap: 12px; }
 .paste-dialog.pl-add > .pl-add-foot { display: flex; justify-content: flex-end; }
 .pill-btn.small { height: 26px; padding: 0 12px 0 9px; font-size: 12px; }

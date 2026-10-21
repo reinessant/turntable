@@ -192,6 +192,58 @@ fn save_album(app: tauri::AppHandle, cancel: State<'_, AtomicBool>, request: Sav
     result
 }
 
+/* Audio files added straight to a playlist (not from an album in the library) live in their own folder,
+   playlist-files/<playlist id>/<file id>.<ext>, copied there when the playlist is saved. */
+const AUDIO_EXTENSIONS: [&str; 6] = ["mp3", "flac", "m4a", "wav", "ogg", "opus"];
+
+/// ids come from the page: only plain ones may become a folder or file name
+fn safe_id(id: &str) -> Result<&str, String> {
+    if !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') { Ok(id) } else { Err("Invalid id".into()) }
+}
+
+fn playlist_files_dir(app: &tauri::AppHandle, playlist_id: &str) -> Result<PathBuf, String> {
+    Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("playlist-files").join(safe_id(playlist_id)?))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaylistFileDraft { id: String, source_path: String }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredPlaylistFile { id: String, file_path: String }
+
+/// Copies the chosen files into the playlist's folder and returns where each one went.
+#[tauri::command]
+fn store_playlist_files(app: tauri::AppHandle, playlist_id: String, files: Vec<PlaylistFileDraft>) -> Result<Vec<StoredPlaylistFile>, String> {
+    let dir = playlist_files_dir(&app, &playlist_id)?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let mut stored = Vec::with_capacity(files.len());
+    for file in &files {
+        let source = PathBuf::from(&file.source_path);
+        let ext = source.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+        if !AUDIO_EXTENSIONS.contains(&ext.as_str()) { return Err(format!("Unsupported audio format: {ext}")); }
+        let dest = dir.join(format!("{}.{}", safe_id(&file.id)?, ext));
+        fs::copy(&source, &dest).map_err(|e| format!("Could not copy {}: {e}", source.display()))?;
+        stored.push(StoredPlaylistFile { id: file.id.clone(), file_path: dest.to_string_lossy().to_string() });
+    }
+    Ok(stored)
+}
+
+/// Deletes the playlist's files that are no longer in it (all of them, and the folder, when `keep` is empty).
+#[tauri::command]
+fn prune_playlist_files(app: tauri::AppHandle, playlist_id: String, keep: Vec<String>) -> Result<(), String> {
+    let dir = playlist_files_dir(&app, &playlist_id)?;
+    if !dir.is_dir() { return Ok(()); }
+    for entry in fs::read_dir(&dir).map_err(|e| e.to_string())?.flatten() {
+        let path = entry.path();
+        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+        if path.is_file() && !keep.iter().any(|id| id == stem) { let _ = fs::remove_file(&path); }
+    }
+    if keep.is_empty() { let _ = fs::remove_dir(&dir); }
+    Ok(())
+}
+
 /// At most three tags, trimmed, without repeats.
 fn clean_genres(genres: &[String]) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
@@ -568,7 +620,7 @@ fn main() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![load_albums, allow_import_path, decode_audio, probe_audio, save_album, cancel_import, delete_album, set_album_liked, set_album_genres, set_track_lyrics, sc_login, open_soundcloud, open_contact, set_window_round, quit_app, set_hotkeys, set_close_to_tray, launch_hidden, get_autostart, set_autostart, open_library_folder])
+        .invoke_handler(tauri::generate_handler![load_albums, allow_import_path, decode_audio, probe_audio, save_album, cancel_import, delete_album, store_playlist_files, prune_playlist_files, set_album_liked, set_album_genres, set_track_lyrics, sc_login, open_soundcloud, open_contact, set_window_round, quit_app, set_hotkeys, set_close_to_tray, launch_hidden, get_autostart, set_autostart, open_library_folder])
         .run(tauri::generate_context!())
         .expect("Turntable failed to start");
 }
