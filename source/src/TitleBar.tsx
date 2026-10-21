@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { coversMonitor, toggleWindowFullscreen } from "./fullscreen";
 import { enterMini } from "./mini";
 import { t } from "./lang";
 
@@ -16,30 +17,30 @@ function WindowIcon({ name }: { name: "minimize" | "maximize" | "restore" | "clo
   return <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1" aria-hidden="true">{paths[name]}</svg>;
 }
 
-/** The app starts fullscreen (tauri.conf.json). The middle button and F11 switch fullscreen ↔ window. */
+/** The app starts fullscreen (tauri.conf.json). The middle button, F11 and a double click switch fullscreen ↔ window.
+    In fullscreen the bar is not a drag handle: pulling the window away by its top edge used to leave it in a state
+    that fullscreen could not be restored from. */
 export function TitleBar() {
   const [fullscreen, setFullscreen] = useState(true);
   useEffect(() => {
     if (!isTauri()) return;
     const window = getCurrentWindow();
     let alive = true;
-    const refresh = () => { void window.isFullscreen().then((value) => { if (alive) setFullscreen(value); }); };
-    const toggle = async () => { await window.setFullscreen(!(await window.isFullscreen())); refresh(); };
+    const refresh = () => { void coversMonitor().then((value) => { if (alive) setFullscreen(value); }).catch(() => undefined); };
+    const toggle = async () => { await toggleWindowFullscreen(); refresh(); };
     const key = (event: KeyboardEvent) => { if (event.key === "F11") { event.preventDefault(); void toggle(); } };
     refresh();
-    const unlisten = window.onResized(refresh);
+    const unlisten = [window.onResized(refresh), window.onMoved(refresh)];
     addEventListener("keydown", key);
-    return () => { alive = false; removeEventListener("keydown", key); void unlisten.then((stop) => stop()); };
+    return () => { alive = false; removeEventListener("keydown", key); unlisten.forEach((stop) => void stop.then((fn) => fn())); };
   }, []);
   if (!isTauri() && !(import.meta.env.DEV && new URLSearchParams(location.search).has("titlebar"))) return null;
   const appWindow = isTauri() ? getCurrentWindow() : null;
   const toggleFullscreen = async () => {
     if (!appWindow) return;
-    const next = !(await appWindow.isFullscreen());
-    await appWindow.setFullscreen(next);
-    setFullscreen(next);
+    setFullscreen(await toggleWindowFullscreen());
   };
-  return <div className="titlebar" data-tauri-drag-region onDoubleClick={(event) => { if (event.target === event.currentTarget) void toggleFullscreen(); }}>
+  return <div className="titlebar" data-tauri-drag-region={fullscreen ? undefined : true} onDoubleClick={(event) => { if (event.target === event.currentTarget) void toggleFullscreen(); }}>
     <div className="titlebar-controls">
       <button aria-label={t("Mini player")} title={t("Mini player (Ctrl+M)")} onClick={(event) => { event.stopPropagation(); void enterMini(); }}><WindowIcon name="mini" /></button>
       <button aria-label={t("Minimize window")} onClick={(event) => { event.stopPropagation(); void appWindow?.minimize(); }}><WindowIcon name="minimize" /></button>

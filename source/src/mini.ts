@@ -3,6 +3,7 @@
    recorder's CSS-rounded (anti-aliased) corners are its outline. A Win32 region would cut them jagged. */
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { LogicalSize, PhysicalPosition, currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
+import { setWindowFullscreen } from "./fullscreen";
 import { useApp } from "./state";
 import { settings, updateSettings } from "./settings";
 
@@ -76,8 +77,9 @@ export async function exitMini(): Promise<void> {
   await window.setAlwaysOnTop(false);
   await window.setResizable(true);
   await window.setMinSize(new LogicalSize(1280, 720));
-  await window.setFullscreen(true);
-  await window.show(); await window.setFocus();
+  await window.show();
+  await setWindowFullscreen(true);
+  await window.setFocus();
 }
 
 export async function hideToTray(): Promise<void> {
