@@ -1,6 +1,7 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { load } from "@tauri-apps/plugin-store";
+import { credit } from "./credit";
 import type { Album, Track } from "./types";
 
 type Lyrics = { syncedLyrics?: string; plainLyrics?: string };
@@ -43,29 +44,42 @@ function best(list: Found[] | null, title: string, artist: string, duration: num
 }
 
 const cache = new Map<string, Lyrics>();
-type Kept = Lyrics & { at: number };
+type Kept = Lyrics & { at: number; v?: number };
 const MISS_TTL = 3 * 24 * 3600 * 1000;
+const LOOKUP_VERSION = 2;
 let disk: Promise<Awaited<ReturnType<typeof load>> | null> | null = null;
 const lyricsStore = () => disk ??= isTauri() ? load("lyrics.json", { autoSave: 2000 }).catch(() => null) : Promise.resolve(null);
 
+/** A record pressed from many artists is "Various artists" and its tracks may still be titled "Artist — Title"
+    (downloaded before tracks kept their own artist): the lookup then goes by the artist in the title. */
+const VARIOUS = /^(various artists?|va|разные исполнители|сборник)$/i;
+function whoMade(track: Track, listed: Album): { artist: string; title: string } {
+  const own = track.artist ?? "";
+  if (own) return { artist: own, title: track.title };
+  if (VARIOUS.test(listed.artist.trim())) { const split = credit(track.title, ""); if (split.artist) return split; }
+  return { artist: listed.artist, title: track.title };
+}
+
 export async function fetchLyrics(track: Track, listed: Album): Promise<Lyrics> {
   // a playlist track asks for lyrics as the track of its own album (its artist and record, and the same cache entry)
-  const album = { id: track.sourceAlbumId ?? listed.id, artist: track.artist ?? listed.artist, title: track.albumTitle ?? listed.title };
+  const who = whoMade(track, listed);
+  const album = { id: track.sourceAlbumId ?? listed.id, artist: who.artist, title: track.albumTitle ?? listed.title };
   const key = album.id + "/" + track.id;
   const kept = cache.get(key);
   if (kept) return kept;
   const store = await lyricsStore();
   const saved = await store?.get<Kept>(key).catch(() => undefined);
-  if (saved && (saved.syncedLyrics || saved.plainLyrics || Date.now() - saved.at < MISS_TTL)) {
+  // misses saved before the lookup knew about per-track artists (no `v`) are asked again; found lyrics stay as they are
+  if (saved && (saved.syncedLyrics || saved.plainLyrics || (saved.v === LOOKUP_VERSION && Date.now() - saved.at < MISS_TTL))) {
     const result = { syncedLyrics: saved.syncedLyrics, plainLyrics: saved.plainLyrics };
     cache.set(key, result);
     return result;
   }
   const duration = String(Math.round(track.duration));
-  const title = cleanTrackTitle(track.title, album.artist), artist = latin(album.artist), albumName = latin(album.title);
+  const title = cleanTrackTitle(who.title, album.artist), artist = latin(album.artist), albumName = latin(album.title);
   let found: Found | undefined;
   const attempts: Record<string, string>[] = [
-    { artist_name: album.artist, album_name: album.title, track_name: track.title, duration },
+    { artist_name: album.artist, album_name: album.title, track_name: who.title, duration },
     { artist_name: artist, album_name: albumName, track_name: title, duration },
     { artist_name: artist, track_name: title, duration }
   ];
@@ -77,6 +91,6 @@ export async function fetchLyrics(track: Track, listed: Album): Promise<Lyrics> 
     ?? best(await request<Found[]>("search", { q: artist + " " + title }), title, artist, track.duration);
   const result: Lyrics = found ? { syncedLyrics: found.syncedLyrics, plainLyrics: found.plainLyrics } : {};
   cache.set(key, result);
-  void store?.set(key, { ...result, at: Date.now() }).catch(() => {});
+  void store?.set(key, { ...result, at: Date.now(), v: LOOKUP_VERSION }).catch(() => {});
   return result;
 }

@@ -21,7 +21,7 @@ export function ImportScreen({ album, initialPaths, onClose }: Props) {
   const [genres, setGenres] = useState<string[]>(album?.genres ?? []);
   const [tracks, setTracks] = useState<DraftTrack[]>(album?.tracks.map((track) => ({
     // the track's own .lrc travels with it, or saving the edit would drop the lyrics of every track
-    id: track.id, title: track.title, duration: track.duration, sourcePath: track.filePath, lyricsSource: track.lyricsPath
+    id: track.id, title: track.title, duration: track.duration, sourcePath: track.filePath, lyricsSource: track.lyricsPath, artist: track.artist
   })) || []);
   const [cover, setCover] = useState<Blob | null>(null);
   const [coverUrl, setCoverUrl] = useState(album?.coverPath ? asset(album.coverPath) : "");

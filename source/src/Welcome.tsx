@@ -2,9 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { useApp } from "./state";
 import { updateSettings } from "./settings";
-import { ArrowOut } from "./ScParts";
 import { useLang } from "./lang";
 import "./welcome.css";
+
+function ArrowOut({ size = 12 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true" style={{ display: "block" }}>
+    <path d="M4 2.5h5.5V8M9.3 2.7 2.5 9.5" />
+  </svg>;
+}
 
 /* The welcome screen: opens by itself on the first launch, and any time from Settings → About.
    Two languages, switched at the top; it starts in the system's. */

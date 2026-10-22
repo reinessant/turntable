@@ -18,6 +18,9 @@ struct Track {
     duration: f64,
     file_path: String,
     lyrics_path: Option<String>,
+    /// who made this track, when it is not the album's artist (a mix, a playlist pressed from many artists)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    artist: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -47,6 +50,8 @@ struct DraftTrack {
     source_path: String,
     lyrics_source: Option<String>,
     lyrics_text: Option<String>,
+    #[serde(default)]
+    artist: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -164,7 +169,8 @@ fn save_album(app: tauri::AppHandle, cancel: State<'_, AtomicBool>, request: Sav
                 fs::write(&lyric_dest, text).map_err(|e| e.to_string())?;
                 Some(final_dir.join(lyric_dest.file_name().unwrap()).to_string_lossy().to_string())
             } else { None };
-            tracks.push(Track { id: draft.id.clone(), album_id: request.id.clone(), index: position + 1, title: draft.title.trim().to_string(), duration: draft.duration, file_path: final_dir.join(name).to_string_lossy().to_string(), lyrics_path });
+            tracks.push(Track { id: draft.id.clone(), album_id: request.id.clone(), index: position + 1, title: draft.title.trim().to_string(), duration: draft.duration, file_path: final_dir.join(name).to_string_lossy().to_string(), lyrics_path,
+                artist: draft.artist.as_ref().map(|a| a.trim().to_string()).filter(|a| !a.is_empty()) });
             let _ = app.emit("import-progress", serde_json::json!({"done":position+1,"total":request.tracks.len()}));
         }
         let cover = staging.join("cover.jpg");
@@ -315,56 +321,233 @@ fn set_track_lyrics(app: tauri::AppHandle, album_id: String, track_id: String, p
     write_collection(&app, &albums)?;
     Ok(albums)
 }
-/// SoundCloud sign-in: open the authorize page in the user's browser and wait on the loopback
-/// redirect (http://127.0.0.1:{port}/soundcloud/callback) for SoundCloud to hand back the code.
-/// Returns the callback's query string; the frontend checks `state` and exchanges the code.
-#[tauri::command]
-async fn sc_login(authorize_url: String, port: u16) -> Result<String, String> {
-    use std::io::{Read, Write};
-    use std::net::TcpListener;
-    use std::time::{Duration, Instant};
-    if !authorize_url.starts_with("https://secure.soundcloud.com/") { return Err("Unexpected sign-in address".into()); }
-    tauri::async_runtime::spawn_blocking(move || {
-        let listener = TcpListener::bind(("127.0.0.1", port)).map_err(|e| format!("Port {port} is busy: {e}"))?;
-        listener.set_nonblocking(true).map_err(|e| e.to_string())?;
-        // the authorize URL is ours and https-only (checked above); the shell opens it in the default browser
-        std::process::Command::new("rundll32").args(["url.dll,FileProtocolHandler", &authorize_url]).spawn().map_err(|e| e.to_string())?;
-        let deadline = Instant::now() + Duration::from_secs(300);
-        while Instant::now() < deadline {
-            match listener.accept() {
-                Ok((mut stream, _)) => {
-                    stream.set_nonblocking(false).ok();
-                    stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
-                    let mut buffer = [0u8; 4096];
-                    let read = stream.read(&mut buffer).unwrap_or(0);
-                    let request = String::from_utf8_lossy(&buffer[..read]).to_string();
-                    let target = request.lines().next().and_then(|line| line.split_whitespace().nth(1)).unwrap_or("").to_string();
-                    if !target.starts_with("/soundcloud/callback") {
-                        let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
-                        continue;
-                    }
-                    let page = "<!doctype html><meta charset=utf-8><title>Turntable</title><body style=\"font:16px system-ui;background:#141318;color:#eee;display:grid;place-items:center;height:100vh;margin:0\"><div style=\"text-align:center\"><h2 style=\"margin:0 0 8px\">SoundCloud connected</h2><p style=\"opacity:.6;margin:0\">You can close this tab and go back to Turntable.</p></div>";
-                    let response = format!("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", page.len(), page);
-                    let _ = stream.write_all(response.as_bytes());
-                    return Ok(target.split_once('?').map(|(_, query)| query.to_string()).unwrap_or_default());
-                }
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(120)),
-                Err(e) => return Err(e.to_string()),
-            }
+/* The "Download" sheet: SoundCloud links are fetched with yt-dlp (open source, no account or keys). Turntable keeps
+   its own copy of yt-dlp.exe in <app data>/bin: fetched from yt-dlp's GitHub releases the first time it is needed
+   (and checked against the release's SHA2-256SUMS) and updated with `yt-dlp -U` when it gets old or an extraction
+   fails (SoundCloud changes now and then). */
+const YTDLP_URL: &str = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe";
+const YTDLP_SUMS_URL: &str = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS";
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+static YTDLP_UPDATED: AtomicBool = AtomicBool::new(false);
+/// Runs of yt-dlp share this lock; an update (`-U` replaces the exe) takes it alone, so no run starts or is cut off mid-update.
+static YTDLP_RUNNING: std::sync::RwLock<()> = std::sync::RwLock::new(());
+/// longest a lookup / a track may take before the process is killed (a stalled connection must not hang a job for ever)
+const LOOKUP_LIMIT: u64 = 300;
+const TRACK_LIMIT: u64 = 1800;
+
+fn ytdlp_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("bin").join("yt-dlp.exe"))
+}
+
+fn ytdlp_present(path: &Path) -> bool { fs::metadata(path).map(|m| m.len() > 5_000_000).unwrap_or(false) }
+
+fn is_soundcloud_link(url: &str) -> bool {
+    let lower = url.trim().to_ascii_lowercase();
+    ["https://soundcloud.com/", "https://www.soundcloud.com/", "https://m.soundcloud.com/", "https://on.soundcloud.com/"].iter().any(|prefix| lower.starts_with(prefix))
+}
+
+/// The host of an https address, lower-cased; None for anything with a userinfo part or a port we do not expect.
+fn https_host(url: &str) -> Option<String> {
+    let rest = url.trim().strip_prefix("https://").or_else(|| url.trim().strip_prefix("HTTPS://"))?;
+    let authority = rest.split(|c| c == '/' || c == '?' || c == '#').next()?;
+    if authority.is_empty() || authority.contains('@') { return None; }
+    Some(authority.split(':').next()?.to_ascii_lowercase())
+}
+
+fn soundcloud_host(url: &str) -> bool {
+    https_host(url).map(|host| ["soundcloud.com", "sndcdn.com", "soundcloud.cloud"].iter().any(|h| host == *h || host.ends_with(&format!(".{h}")))).unwrap_or(false)
+}
+
+/// The lookup JSON the page hands back for `--load-info-json` must only point at SoundCloud's own hosts: yt-dlp would
+/// fetch whatever the file names.
+fn info_is_safe(text: &str) -> bool {
+    if text.len() > 2_000_000 { return false; }
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(text) else { return false };
+    let known = |key: &str| value.get(key).and_then(|v| v.as_str()).map(soundcloud_host).unwrap_or(true);
+    if !known("webpage_url") || !known("url") || !known("manifest_url") { return false; }
+    value.get("formats").and_then(|f| f.as_array()).map(|formats| formats.iter().all(|format| {
+        ["url", "manifest_url"].iter().all(|key| format.get(*key).and_then(|v| v.as_str()).map(soundcloud_host).unwrap_or(true))
+            && format.get("fragments").and_then(|f| f.as_array()).map(|list| list.iter().all(|f| f.get("url").and_then(|v| v.as_str()).map(soundcloud_host).unwrap_or(true))).unwrap_or(true)
+    })).unwrap_or(true)
+}
+
+/// Starts yt-dlp, collects its output and waits at most `limit` seconds: a process that stalls is killed.
+fn spawn_ytdlp(exe: &Path, args: &[String], limit: u64) -> Result<std::process::Output, String> {
+    use std::io::Read;
+    use std::os::windows::process::CommandExt;
+    use std::process::Stdio;
+    let mut child = std::process::Command::new(exe).args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped())
+        .creation_flags(CREATE_NO_WINDOW).spawn().map_err(|e| format!("Could not start the downloader: {e}"))?;
+    let mut out = child.stdout.take().ok_or("Could not start the downloader")?;
+    let mut err = child.stderr.take().ok_or("Could not start the downloader")?;
+    // both pipes are drained on their own threads: a full pipe would block yt-dlp and look like a stall
+    let read_out = std::thread::spawn(move || { let mut buffer = Vec::new(); let _ = out.read_to_end(&mut buffer); buffer });
+    let read_err = std::thread::spawn(move || { let mut buffer = Vec::new(); let _ = err.read_to_end(&mut buffer); buffer });
+    let started = std::time::Instant::now();
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if started.elapsed().as_secs() >= limit => { let _ = child.kill(); let _ = child.wait(); return Err("The downloader took too long".into()); }
+            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(100)),
+            Err(e) => return Err(format!("Could not start the downloader: {e}")),
         }
-        Err("Sign-in timed out".into())
+    };
+    Ok(std::process::Output { status, stdout: read_out.join().unwrap_or_default(), stderr: read_err.join().unwrap_or_default() })
+}
+
+fn run_ytdlp(exe: &Path, args: &[String], limit: u64) -> Result<std::process::Output, String> {
+    let _shared = YTDLP_RUNNING.read().unwrap_or_else(|e| e.into_inner());
+    spawn_ytdlp(exe, args, limit)
+}
+
+/// `yt-dlp -U`, with no other run going on (it replaces the exe).
+fn update_ytdlp(exe: &Path) {
+    let _alone = YTDLP_RUNNING.write().unwrap_or_else(|e| e.into_inner());
+    let _ = spawn_ytdlp(exe, &["-U".to_string()], 180);
+}
+
+/// yt-dlp's last "ERROR:" line, without its "[extractor] id:" prefix.
+fn ytdlp_error(output: &std::process::Output) -> String {
+    let text = String::from_utf8_lossy(&output.stderr);
+    let line = text.lines().rev().find(|l| l.contains("ERROR:")).unwrap_or("The downloader failed");
+    let message = line.split("ERROR:").nth(1).unwrap_or(line).trim();
+    let message = message.strip_prefix('[').and_then(|m| m.split_once("] ")).map(|(_, rest)| rest).unwrap_or(message);
+    let message = message.split_once(": ").filter(|(head, _)| head.chars().all(|c| c.is_ascii_alphanumeric() || c == '/' || c == '-' || c == '_')).map(|(_, rest)| rest).unwrap_or(message);
+    message.chars().take(200).collect()
+}
+
+/// SoundCloud answers 403/429 when it is asked for too much too fast; asking again at once only makes it worse.
+fn rate_limited(text: &str) -> bool {
+    text.contains("HTTP Error 403") || text.contains("HTTP Error 429") || text.contains("Too Many Requests")
+}
+
+/// Runs yt-dlp; if it fails, updates it once per session and tries again.
+fn run_ytdlp_retry(exe: &Path, args: &[String], limit: u64) -> Result<std::process::Output, String> {
+    let output = run_ytdlp(exe, args, limit)?;
+    if output.status.success() || rate_limited(&String::from_utf8_lossy(&output.stderr)) || YTDLP_UPDATED.swap(true, Ordering::SeqCst) { return Ok(output); }
+    update_ytdlp(exe);
+    run_ytdlp(exe, args, limit)
+}
+
+#[tauri::command]
+fn ytdlp_ready(app: tauri::AppHandle) -> bool { ytdlp_path(&app).map(|p| ytdlp_present(&p)).unwrap_or(false) }
+
+/// One download of yt-dlp at a time: the first lookup and a track added elsewhere must not both write the same file.
+static YTDLP_FETCH: tauri::async_runtime::Mutex<()> = tauri::async_runtime::Mutex::const_new(());
+
+/// SHA-256 of a file (Windows' own certutil, so no extra crate), lower-case hex.
+fn sha256_of(path: &Path) -> Result<String, String> {
+    use std::os::windows::process::CommandExt;
+    let output = std::process::Command::new("certutil").args(["-hashfile", &path.to_string_lossy(), "SHA256"]).creation_flags(CREATE_NO_WINDOW).output().map_err(|e| e.to_string())?;
+    String::from_utf8_lossy(&output.stdout).lines().map(|l| l.replace(' ', "").to_ascii_lowercase())
+        .find(|l| l.len() == 64 && l.chars().all(|c| c.is_ascii_hexdigit())).ok_or_else(|| "Could not check the downloader file".to_string())
+}
+
+async fn ensure_ytdlp(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    use tauri_plugin_http::reqwest;
+    let path = ytdlp_path(app)?;
+    let _turn = YTDLP_FETCH.lock().await;
+    if ytdlp_present(&path) {
+        // a copy that is two weeks old is refreshed in the background, once per session
+        let stale = fs::metadata(&path).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).map(|age| age.as_secs() > 14 * 86_400).unwrap_or(false);
+        if stale && !YTDLP_UPDATED.swap(true, Ordering::SeqCst) {
+            let exe = path.clone();
+            tauri::async_runtime::spawn_blocking(move || update_ytdlp(&exe));
+        }
+        return Ok(path);
+    }
+    fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(300)).user_agent("Turntable").build().map_err(|e| e.to_string())?;
+    let response = client.get(YTDLP_URL).send().await.map_err(|e| format!("Could not get the downloader: {e}"))?;
+    if !response.status().is_success() { return Err(format!("Could not get the downloader (GitHub answered {})", response.status().as_u16())); }
+    let bytes = response.bytes().await.map_err(|e| format!("Could not get the downloader: {e}"))?;
+    if bytes.len() < 5_000_000 || &bytes[..2] != b"MZ" { return Err("The downloader file looks wrong".into()); }
+    // the release lists the SHA-256 of every file: what came down must be exactly that
+    let sums = client.get(YTDLP_SUMS_URL).send().await.map_err(|e| format!("Could not get the downloader: {e}"))?;
+    if !sums.status().is_success() { return Err(format!("Could not get the downloader (GitHub answered {})", sums.status().as_u16())); }
+    let sums = sums.text().await.map_err(|e| format!("Could not get the downloader: {e}"))?;
+    let expected = sums.lines().find_map(|line| {
+        let mut parts = line.split_whitespace();
+        let (hash, name) = (parts.next()?, parts.next()?);
+        (name.trim_start_matches('*') == "yt-dlp.exe").then(|| hash.to_ascii_lowercase())
+    }).ok_or_else(|| "Could not check the downloader file".to_string())?;
+    let part = path.with_extension("exe.part");
+    fs::write(&part, &bytes).map_err(|e| e.to_string())?;
+    let actual = sha256_of(&part);
+    if actual.as_deref() != Ok(expected.as_str()) { let _ = fs::remove_file(&part); return Err("The downloader failed its integrity check".into()); }
+    fs::rename(&part, &path).map_err(|e| e.to_string())?;
+    Ok(path)
+}
+
+/// What is behind a SoundCloud link: a track, or a set with its entries (yt-dlp's JSON, as is).
+#[tauri::command]
+async fn ytdlp_info(app: tauri::AppHandle, url: String) -> Result<String, String> {
+    if !is_soundcloud_link(&url) { return Err("That isn't a soundcloud.com link".into()); }
+    let exe = ensure_ytdlp(&app).await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let args: Vec<String> = ["--no-warnings", "--socket-timeout", "30", "--flat-playlist", "-J", "--", url.trim()].iter().map(|s| s.to_string()).collect();
+        let output = run_ytdlp_retry(&exe, &args, LOOKUP_LIMIT)?;
+        if !output.status.success() { return Err(ytdlp_error(&output)); }
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }).await.map_err(|e| e.to_string())?
 }
 
-/// Opens a soundcloud.com page in the default browser (attribution links on SoundCloud records).
+/// Downloads one track into the cache folder; returns yt-dlp's JSON for it (`_filename` is the file).
+/// `info` is the JSON `ytdlp_info` gave for this very track: with it yt-dlp skips looking the track up again.
 #[tauri::command]
-fn open_soundcloud(url: String) -> Result<(), String> {
-    if !(url.starts_with("https://soundcloud.com/") || url.starts_with("https://on.soundcloud.com/")) { return Err("Not a SoundCloud link".into()); }
-    std::process::Command::new("rundll32").args(["url.dll,FileProtocolHandler", &url]).spawn().map(|_| ()).map_err(|e| e.to_string())
+async fn ytdlp_fetch(app: tauri::AppHandle, url: String, info: Option<String>, batch: String) -> Result<String, String> {
+    if !is_soundcloud_link(&url) { return Err("That isn't a soundcloud.com link".into()); }
+    let exe = ensure_ytdlp(&app).await?;
+    let dir = downloads_dir(&app, Some(&batch))?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
+    let template = dir.join(format!("{stamp}.%(ext)s")).to_string_lossy().to_string();
+    let url = url.trim().to_string();
+    // a lookup that points anywhere but SoundCloud is not used: the track is looked up again, the long way
+    let info_file = match &info { Some(text) if info_is_safe(text) => { let path = dir.join(format!("{stamp}.info.json")); fs::write(&path, text).ok().map(|_| path) } _ => None };
+    tauri::async_runtime::spawn_blocking(move || {
+        let common = ["--no-warnings", "-q", "--no-progress", "--no-playlist", "--socket-timeout", "30", "--concurrent-fragments", "8", "-f", "hls_aac_160k/http_mp3_128/bestaudio[ext=m4a]/bestaudio", "-o", &template, "--print-json"];
+        let by_url: Vec<String> = common.iter().map(|s| s.to_string()).chain(["--".to_string(), url.clone()]).collect();
+        let finish = |output: std::process::Output| -> Result<String, String> {
+            if !output.status.success() { return Err(ytdlp_error(&output)); }
+            let text = String::from_utf8_lossy(&output.stdout).to_string();
+            text.lines().rev().find(|l| l.starts_with('{')).map(|l| l.to_string()).ok_or_else(|| "The downloader returned nothing".to_string())
+        };
+        // the saved lookup may have gone stale (signed stream links expire): then it is done the long way
+        if let Some(file) = &info_file {
+            let quick: Vec<String> = common.iter().map(|s| s.to_string()).chain(["--load-info-json".to_string(), file.to_string_lossy().to_string()]).collect();
+            let attempt = run_ytdlp(&exe, &quick, TRACK_LIMIT).and_then(finish);
+            let _ = fs::remove_file(file);
+            match attempt {
+                Ok(text) => return Ok(text),
+                // asked too much: the caller waits and tries again, not us right now
+                Err(message) if rate_limited(&message) => return Err(message),
+                Err(_) => {}
+            }
+        }
+        finish(run_ytdlp_retry(&exe, &by_url, TRACK_LIMIT)?)
+    }).await.map_err(|e| e.to_string())?
+}
+
+/// The cache folder of downloads, or one batch's own folder inside it (a batch is one job or one added track: they
+/// run at the same time and must not delete each other's files). The batch id comes from the page: plain ids only.
+fn downloads_dir(app: &tauri::AppHandle, batch: Option<&str>) -> Result<PathBuf, String> {
+    let root = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("downloads");
+    match batch {
+        Some(id) if !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') => Ok(root.join(id)),
+        Some(_) => Err("Bad download id".into()),
+        None => Ok(root),
+    }
+}
+
+/// Removes one batch's downloaded files, or (no batch: at launch, when nothing can be running) all of them.
+#[tauri::command]
+fn clear_downloads(app: tauri::AppHandle, batch: Option<String>) {
+    if let Ok(dir) = downloads_dir(&app, batch.as_deref()) { let _ = fs::remove_dir_all(dir); }
 }
 
 /// Opens the author's Telegram or the Telegram channel (the welcome screen's and the corner buttons) in the default
-/// app or browser. Only these two addresses are allowed, like `open_soundcloud` above.
+/// app or browser. Only these two addresses are allowed.
 #[tauri::command]
 fn open_contact(url: String) -> Result<(), String> {
     if !["https://t.me/openwoundsdotcom", "https://t.me/turntabletg"].contains(&url.as_str()) { return Err("Not a known contact link".into()); }
@@ -620,10 +803,74 @@ fn main() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![load_albums, allow_import_path, decode_audio, probe_audio, save_album, cancel_import, delete_album, store_playlist_files, prune_playlist_files, set_album_liked, set_album_genres, set_track_lyrics, sc_login, open_soundcloud, open_contact, set_window_round, quit_app, set_hotkeys, set_close_to_tray, launch_hidden, get_autostart, set_autostart, open_library_folder])
+        .invoke_handler(tauri::generate_handler![load_albums, allow_import_path, decode_audio, probe_audio, save_album, cancel_import, delete_album, store_playlist_files, prune_playlist_files, set_album_liked, set_album_genres, set_track_lyrics, ytdlp_ready, ytdlp_info, ytdlp_fetch, clear_downloads, open_contact, set_window_round, quit_app, set_hotkeys, set_close_to_tray, launch_hidden, get_autostart, set_autostart, open_library_folder])
         .run(tauri::generate_context!())
         .expect("Turntable failed to start");
 }
 
+#[cfg(test)]
+mod download_tests {
+    use super::*;
+    use std::os::windows::process::ExitStatusExt;
 
+    #[test]
+    fn only_soundcloud_links_pass() {
+        assert!(is_soundcloud_link("https://soundcloud.com/a/b"));
+        assert!(is_soundcloud_link("https://SoundCloud.com/Artist/Track"));
+        assert!(is_soundcloud_link("HTTPS://on.soundcloud.com/abc"));
+        assert!(!is_soundcloud_link("http://soundcloud.com/x"));
+        assert!(!is_soundcloud_link("https://soundcloud.com.evil.com/x"));
+        assert!(!is_soundcloud_link("https://evilsoundcloud.com/x"));
+        assert!(!is_soundcloud_link("https://example.com/https://soundcloud.com/"));
+    }
 
+    #[test]
+    fn hosts_are_read_strictly() {
+        assert!(soundcloud_host("https://api-v2.soundcloud.com/resolve"));
+        assert!(soundcloud_host("https://i1.sndcdn.com/a.jpg"));
+        assert!(soundcloud_host("https://cf-hls-media.sndcdn.com/playlist/x.m3u8?Policy=1"));
+        assert!(!soundcloud_host("https://soundcloud.com@evil.com/x"));
+        assert!(!soundcloud_host("https://evil.com/soundcloud.com"));
+        assert!(!soundcloud_host("https://notsndcdn.com/x"));
+        assert!(!soundcloud_host("https://sndcdn.com.evil.io/x"));
+        assert!(!soundcloud_host("http://i1.sndcdn.com/x"));
+    }
+
+    #[test]
+    fn a_lookup_may_only_point_at_soundcloud() {
+        let good = r#"{"webpage_url":"https://soundcloud.com/a/b","formats":[{"url":"https://cf-hls-media.sndcdn.com/x.m3u8","manifest_url":"https://api-v2.soundcloud.com/m"}]}"#;
+        assert!(info_is_safe(good));
+        let bad_format = r#"{"webpage_url":"https://soundcloud.com/a/b","formats":[{"url":"https://evil.example/x"}]}"#;
+        assert!(!info_is_safe(bad_format));
+        assert!(!info_is_safe(r#"{"webpage_url":"https://evil.example/x"}"#));
+        assert!(!info_is_safe(r#"{"formats":[{"fragments":[{"url":"http://169.254.169.254/"}]}]}"#));
+        assert!(!info_is_safe("not json"));
+        assert!(info_is_safe(r#"{"title":"no urls at all"}"#));
+    }
+
+    #[test]
+    fn refusals_are_told_from_other_errors() {
+        let output = |stderr: &str| std::process::Output { status: std::process::ExitStatus::from_raw(1), stdout: vec![], stderr: stderr.as_bytes().to_vec() };
+        let refused = ytdlp_error(&output("WARNING: x\nERROR: [soundcloud] 12: Unable to download webpage: HTTP Error 403: Forbidden (caused by <HTTPError 403: Forbidden>)\n"));
+        assert!(rate_limited(&refused), "{refused}");
+        assert!(rate_limited("HTTP Error 429: Too Many Requests"));
+        let gone = ytdlp_error(&output("ERROR: [soundcloud] 99: This track is not available\n"));
+        assert!(!rate_limited(&gone), "{gone}");
+        assert_eq!(gone, "This track is not available");
+    }
+
+    #[test]
+    fn a_stalled_process_is_killed() {
+        let started = std::time::Instant::now();
+        let result = spawn_ytdlp(Path::new("cmd"), &["/c".into(), "ping".into(), "-n".into(), "30".into(), "127.0.0.1".into()], 1);
+        assert_eq!(result.err().as_deref(), Some("The downloader took too long"));
+        assert!(started.elapsed().as_secs() < 6);
+    }
+
+    #[test]
+    fn a_normal_process_returns_its_output() {
+        let out = spawn_ytdlp(Path::new("cmd"), &["/c".into(), "echo".into(), "hello".into()], 20).unwrap();
+        assert!(out.status.success());
+        assert!(String::from_utf8_lossy(&out.stdout).contains("hello"));
+    }
+}

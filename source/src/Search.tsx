@@ -74,7 +74,7 @@ export function Search({ onPlay, onShow }: { onPlay: (album: Album, index: numbe
               <span className="sr-text">
                 {hit.kind === "album" && <><b><Marked text={hit.album.title} query={query} /></b><span><Marked text={hit.album.artist} query={query} /> · {hit.album.year ? hit.album.year + " · " : ""}{plural(hit.album.tracks.length, "track")}{hit.album.genres?.length ? " · " : ""}{hit.album.genres?.map((genre, i) => <span key={genre} className="sr-genre">{i ? ", " : ""}<Marked text={genre} query={query} /></span>)}</span></>}
                 {hit.kind === "artist" && <><b><Marked text={hit.artist} query={query} /></b><span>{t("Artist")} · {plural(hit.albums.length, "album")}</span></>}
-                {hit.kind === "track" && <><b><Marked text={hit.track.title} query={query} /></b><span>{hit.album.title} · {hit.album.artist}</span></>}
+                {hit.kind === "track" && <><b><Marked text={hit.track.title} query={query} /></b><span>{hit.album.title} · {hit.track.artist ?? hit.album.artist}</span></>}
               </span>
               {hit.kind === "track" && <span className="sr-meta mono">{String(hit.index + 1).padStart(2, "0")} · {clock(hit.track.duration)}</span>}
               <span className="sr-go">{hit.kind === "artist" && hit.albums.length > 1 ? t("Show") : <><Icon name="play-fill" size={11} />{t("Play")}</>}</span>

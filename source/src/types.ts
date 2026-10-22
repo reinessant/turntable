@@ -36,10 +36,7 @@ export interface Album {
   kind?: "album" | "playlist";
   /** up to three genre tags */
   genres?: string[];
-  description?: string;
-  /** albums that live on a streaming service rather than in the local library */
-  source?: { kind: "soundcloud"; url: string };
-}
+  description?: string;}
 export interface DraftTrack {
   id: string;
   title: string;
@@ -49,6 +46,8 @@ export interface DraftTrack {
   lyricsText?: string;
   trackNumber?: number;
   embeddedCover?: Blob;
+  /** who made it, when that is not the album's artist (a mix pressed from many artists) */
+  artist?: string;
 }
 export interface PlaylistFile {
   id: string;

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { hasGenre } from "./genres";
 import type { Album, LyricsState, Playlist, RepeatMode, Screen, ShuffleMode, TransportPhase } from "./types";
-export type Section = "albums" | "stats" | "plugins" | "settings";
+export type Section = "albums" | "downloads" | "stats" | "plugins" | "settings";
 interface AppState {
   /** top tab: the record player (crate/player screens) or the plugin rack */
   section: Section;
@@ -31,11 +31,8 @@ interface AppState {
   transitionBusy: boolean;
   debug: boolean;
   fps: number;
-  /** signed-in SoundCloud account, and whether its library is being fetched */
-  scUser: { id: number; username: string; avatar: string; url: string } | null;
-  scBusy: boolean;
-  /** the "Add from SoundCloud" sheet over the crate */
-  scSheet: boolean;
+  /** the "Download" sheet (paste a link): `true` queues what the link points at; an album id adds one track to that album */
+  download: boolean | string;
   /** compact cassette-recorder window instead of the full screens; the same audio engine keeps playing */
   mini: boolean;
   /** the search over the whole library (Ctrl+K) */
@@ -51,7 +48,7 @@ export const useApp = create<AppState>(() => ({
   duration: 0, volume: 0.78, previewsEnabled: true, shuffle: "off", repeat: "off", previewTrack: null, cueLifted: false,
   lyrics: { mode: "none", lines: [], plain: "" },
   message: "", transition: 0, transitionBusy: false, debug: false, fps: 0,
-  scUser: null, scBusy: false, scSheet: false, mini: false, search: false, welcome: false, guide: false
+  download: false, mini: false, search: false, welcome: false, guide: false
 }));
 /** What the crate shows: the whole library, or the records of the chosen genre. */
 export function crateAlbums(state: { albums: Album[]; genre: string | null } = useApp.getState()): Album[] {
@@ -65,20 +62,6 @@ export function setCrateGenre(genre: string | null): void {
   const next = crateAlbums({ albums: state.albums, genre });
   const at = next.findIndex((album) => album.id === current);
   useApp.setState({ genre, focused: at >= 0 ? at : 0 });
-}
-/** A new record from SoundCloud goes into the crate and comes to the front. */
-export function addRemoteAlbum(album: Album): void {
-  const state = useApp.getState();
-  const next = [album, ...state.albums.filter((item) => item.id !== album.id)].sort((a, b) => b.addedAt - a.addedAt);
-  useApp.setState({ albums: next, genre: null, focused: next.findIndex((item) => item.id === album.id) });
-}
-/** Puts the streaming records into the crate next to the local ones, keeping the album in front where it was. */
-export function mergeRemoteAlbums(remote: Album[]): void {
-  const state = useApp.getState();
-  const current = crateAlbums(state)[state.focused]?.id;
-  const next = [...state.albums.filter((album) => !album.source), ...remote].sort((a, b) => b.addedAt - a.addedAt);
-  const focused = crateAlbums({ albums: next, genre: state.genre }).findIndex((album) => album.id === current);
-  useApp.setState({ albums: next, focused: focused >= 0 ? focused : 0 });
 }
 export function activeAlbum(): Album | undefined {
   const state = useApp.getState();

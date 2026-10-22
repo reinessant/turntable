@@ -6,8 +6,8 @@ import { libraryGenres } from "./genres";
 import { count, t } from "./lang";
 import { Icon, coverSrc } from "./PlayerScreen";
 import { LabelCanvas } from "./labelArt";
-import { ScLogo } from "./ScParts";
-import { scRemoveRecord } from "./soundcloud";
+import { DownloadIcon } from "./DownloadIcon";
+import { useDownloads } from "./downloads";
 import type { Album } from "./types";
 
 /** The genre filter: a pill that opens the list of genres in the library, with how many records carry each. */
@@ -104,6 +104,7 @@ export function CrateScreen({ onImport, onNewPlaylist, onEditPlaylist, onSelect 
     setSort(next);
   };
   const playlistCount = all.filter((item) => item.kind === "playlist").length, albumCount = all.length - playlistCount;
+  const active = useDownloads((state) => state.jobs.filter((job) => job.status === "running" || job.status === "queued").length);
   const counts = genre ? albums.length + " " + t("of") + " " + all.length : count(albumCount, "album") + (playlistCount ? " · " + count(playlistCount, "playlist") : "");
   return <div className="screen crate-screen" onWheel={(event) => {
     // React's wheel listener is passive (preventDefault would only log an error); the screen never scrolls anyway
@@ -117,9 +118,12 @@ export function CrateScreen({ onImport, onNewPlaylist, onEditPlaylist, onSelect 
         <GenreFilter all={all} genre={genre} />
         <button className="pill-btn" onClick={() => sortAlbums(sort === "added" ? "title" : sort === "title" ? "artist" : "added")}>
           <Icon name="sort-ascending" size={14} />{sort === "added" ? t("Recently added") : sort === "title" ? t("Title") : t("Artist")}</button>
+        <button className="pill-btn dl-open" onClick={() => useApp.setState({ section: "downloads" })}>
+          <DownloadIcon />{t("Downloads")}{active > 0 && <span className="dl-badge">{active}</span>}</button>
       </div>
       <div className="hright">
         <button className="pill-btn search-btn" aria-label={t("Search the library")} title={t("Search (Ctrl+K)")} onClick={() => useApp.setState({ search: true })}><Icon name="magnifying-glass" size={14} />{t("Search")}<kbd>Ctrl K</kbd></button>
+        <button className="pill-btn dl-open" onClick={() => useApp.setState({ download: true })}><DownloadIcon />{t("Download")}</button>
         <button className="pill-btn" onClick={onNewPlaylist}><Icon name="plus" size={14} />{t("Playlist")}</button>
         <button className="pill-btn solid" onClick={onImport}><Icon name="plus" size={14} />{t("Import")}</button>
       </div>
@@ -133,15 +137,7 @@ export function CrateScreen({ onImport, onNewPlaylist, onEditPlaylist, onSelect 
           <div className="face"><img src={coverSrc(item)} alt={item.title} /></div><div className="top" /><div className="dim" />
         </div>)}
       </div>
-      <div className="caption" key={album.id}><h2>{album.title}</h2><div className="sub">{album.source?.kind === "soundcloud" && <span className="sc-tag" title={t("From SoundCloud")}><ScLogo size={6} /></span>}{album.kind === "playlist" ? <span className="pl-tag" title={t("A playlist")}>{t("Playlist")}</span> : <span>{album.artist}</span>}<span className="mono">{album.year ? album.year + " · " : ""}{count(album.tracks.length, "track")}</span>
-        {album.source?.kind === "soundcloud" && <button className="sc-remove mono" title={t("Remove this record from the crate (it stays on SoundCloud)")} onClick={async (event) => {
-          event.stopPropagation();
-          try {
-            await scRemoveRecord(album.id);
-            const next = useApp.getState().albums.filter((item) => item.id !== album.id);
-            useApp.setState({ albums: next, focused: Math.min(useApp.getState().focused, Math.max(0, next.length - 1)) });
-          } catch (error) { useApp.setState({ message: String(error) }); }
-        }}>{t("Remove")}</button>}</div>
+      <div className="caption" key={album.id}><h2>{album.title}</h2><div className="sub">{album.kind === "playlist" ? <span className="pl-tag" title={t("A playlist")}>{t("Playlist")}</span> : <span>{album.artist}</span>}<span className="mono">{album.year ? album.year + " · " : ""}{count(album.tracks.length, "track")}</span></div>
         {(album.genres?.length || album.description || album.kind === "playlist") ? <div className="caption-meta">
           {album.kind === "playlist" && <button className="pill-btn small" onClick={() => onEditPlaylist(album.id)}><Icon name="pencil-simple" size={12} />{t("Edit playlist")}</button>}
           {album.genres?.map((name) => <button key={name} className="gp-chip small" title={t("Show only") + " " + name} onClick={() => setCrateGenre(name)}>{name}</button>)}

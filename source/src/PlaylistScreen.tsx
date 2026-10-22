@@ -22,7 +22,7 @@ const plural = (n: number, one: string) => count(n, one);
 
 export function PlaylistScreen({ playlist, onClose }: { playlist?: Playlist; onClose: (saved?: Playlist, deleted?: boolean) => void }) {
   const albums = useApp((state) => state.albums);
-  const library = useMemo(() => albums.filter((album) => album.kind !== "playlist" && !album.source), [albums]);
+  const library = useMemo(() => albums.filter((album) => album.kind !== "playlist"), [albums]);
   const [title, setTitle] = useState(playlist?.title ?? "");
   const [description, setDescription] = useState(playlist?.description ?? "");
   const [genres, setGenres] = useState<string[]>(playlist?.genres ?? []);

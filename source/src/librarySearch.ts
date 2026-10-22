@@ -52,8 +52,10 @@ export function searchLibrary(albums: Album[], raw: string, limits = { albums: 6
     if (a || b || g) albumHits.push({ kind: "album", album, score: Math.max(a, b, g) + (a && b ? 50 : 0) });
     const name = album.artist.trim();
     if (name && album.kind !== "playlist") artists.set(name, [...(artists.get(name) ?? []), album]);
+    // the tracks of a mixed record ("Various artists") have artists of their own: they are found, and listed, by them too
+    if (album.kind !== "playlist") for (const who of new Set(album.tracks.map((track) => track.artist?.trim()).filter((x): x is string => !!x && x !== name))) artists.set(who, [...(artists.get(who) ?? []), album]);
     // a playlist's tracks are already found under their own albums
-    if (album.kind !== "playlist") album.tracks.forEach((track, index) => { const s = best(track.title); if (s) trackHits.push({ kind: "track", album, track, index, score: s - 30 }); });
+    if (album.kind !== "playlist") album.tracks.forEach((track, index) => { const s = Math.max(best(track.title), track.artist ? best(track.artist) * .85 : 0); if (s) trackHits.push({ kind: "track", album, track, index, score: s - 30 }); });
   }
   const artistHits: Hit[] = [];
   for (const [artist, list] of artists) { const s = best(artist); if (s) artistHits.push({ kind: "artist", artist, albums: list, score: s + 20 }); }

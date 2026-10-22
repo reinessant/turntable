@@ -91,7 +91,8 @@ export function resolvePlaylist(playlist: Playlist, albums: Album[]): Album {
       continue;
     }
     const source = byId.get(ref.albumId), track = source?.tracks.find((item) => item.id === ref.trackId);
-    if (source && track) tracks.push({ ...track, albumId: playlist.id, index: tracks.length + 1, artist: source.artist, albumTitle: source.title, sourceAlbumId: source.id });
+    // a track of a mixed record keeps its own artist; the others take the record's
+    if (source && track) tracks.push({ ...track, albumId: playlist.id, index: tracks.length + 1, artist: track.artist ?? source.artist, albumTitle: source.title, sourceAlbumId: source.id });
   }
   return {
     id: playlist.id, kind: "playlist", title: playlist.title, artist: t("Playlist"), description: playlist.description, genres: playlist.genres,

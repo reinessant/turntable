@@ -50,10 +50,7 @@
       "identifier": "http:default",
       "allow": [
         { "url": "https://lrclib.net/*" },
-        { "url": "https://api.soundcloud.com/*" },
-        { "url": "https://secure.soundcloud.com/*" },
-        { "url": "https://*.sndcdn.com/*" },
-        { "url": "https://*.soundcloud.cloud/*" }
+        { "url": "https://*.sndcdn.com/*" }
       ]
     }
   ]

@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { readBlob } from "./library";
-import { isScPath, scTrackBytes } from "./soundcloud";
 import { Rack } from "./fx";
 import { useApp } from "./state";
 import { useSettings } from "./settings";
@@ -210,7 +209,6 @@ class AudioEngine {
       }
       return buffer;
     }
-    if (isScPath(path)) return this.context.decodeAudioData(await scTrackBytes(path));
     await invoke("allow_import_path", { path });
     // the webview's decoder first; Turntable's own when it fails, hands back silence, or the settings say so
     if (!useSettings.getState().nativeDecoder) {
@@ -510,7 +508,6 @@ class AudioEngine {
     let blob: Blob;
     try {
       blob = track.filePath.startsWith("demo-tone:") && import.meta.env.DEV ? demoWav(Number(track.filePath.slice(10)) || 220)
-        : isScPath(track.filePath) ? new Blob([await scTrackBytes(track.filePath)], { type: "audio/mpeg" })
         : await readBlob(track.filePath);
     }
     catch (error) {

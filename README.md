@@ -7,6 +7,7 @@
 - **Crate & turntable** – flip through your albums, drop the needle, drag the tonearm to wind to any moment, hold the platter to scratch.
 - **Synced lyrics** – found automatically on [LRCLIB](https://lrclib.net) and kept on your computer, so they work offline. Or drop an `.lrc` next to a track.
 - **Plugin rack** – seven studio-style units between the record and the volume: two equalizers, a leveling amp, a valve clipper, a sampler crusher, a lowpass filter and a tape echo.
+- **Download** – paste a soundcloud.com link (a track, an album or a playlist) into **Download** and it is fetched with yt-dlp and pressed into your crate as a record. No account, no keys, no server. The **Downloads** screen shows the queue, and *Add to album / playlist* on the deck adds a single track straight into the one you have open.
 - **Playlists** – build them from tracks of your albums or from any audio files on your computer; a collage cover is made for you. Albums stay as they are, a playlist only points at them; files you add are copied into Turntable's folder.
 - **Genres** – up to three tags per album or playlist, a genre filter in the crate and genre search, with plenty of underground ones (rage, plugg, phonk, digicore, hyperpop and more).
 - **Stats** – time on the turntable, minutes per day, your listening clock, a half-year heatmap, top albums and tracks, streaks and a few little facts.
@@ -41,7 +42,7 @@ Windows 10/11, x64. Your files are copied into the app's own folder, so moving t
 
 ## Download and install
 
-1. Open the **[Releases](../../releases)** page of this repository and download **`Turntable-Setup-0.1.2.exe`** from *Assets*.
+1. Open the **[Releases](../../releases)** page of this repository and download **`Turntable-Setup-0.1.3.exe`** from *Assets*.
 2. Run it. Windows may say *"Windows protected your PC"* because the installer is not code-signed yet: click **More info → Run anyway**.
 3. Press **Install** (**Update** if an older version is already installed, **Reinstall** if it is the current one). The setup finishes in a few seconds; keep *Open when done* ticked and Turntable starts by itself. The setup speaks English and Russian: the **RU / EN** switch is in its top-right corner (it starts in your system language).
 
@@ -83,7 +84,7 @@ pnpm tauri build            # app + NSIS installer -> src-tauri/target/release/b
 pwsh installer/build.ps1    # the branded setup -> release/Turntable-Setup-<version>.exe
 ```
 
-SoundCloud import is off in the public build: it needs your own app keys. Copy `.env.example` to `.env.local`, fill in `VITE_SC_CLIENT_ID` / `VITE_SC_CLIENT_SECRET` and rebuild.
+Downloads from SoundCloud work out of the box: Turntable fetches yt-dlp once into its own folder, no keys needed.
 
 Stack: [Tauri 2](https://tauri.app) (Rust) · React 19 · TypeScript · Vite · zustand · GSAP · Web Audio · music-metadata.
 
@@ -130,6 +131,7 @@ The repository root holds the docs; all code lives in [`source/`](source). Relea
 - **Рэк плагинов** – семь студийных приборов между пластинкой и громкостью: два эквалайзера, компрессор, ламповый клиппер, сэмплер-краш, фильтр и ленточное эхо.
 - **Плейлисты** – собираются из треков ваших альбомов или из любых аудиофайлов с компьютера, обложка-коллаж делается сама. Альбомы остаются как есть, плейлист только ссылается на них; добавленные файлы копируются в папку Turntable.
 - **Жанры** – до трёх тегов на альбом или плейлист, фильтр в крейте и поиск по жанрам, много андеграунда (rage, plugg, phonk, digicore, hyperpop и другие).
+- **Скачивание** – вставьте ссылку soundcloud.com (трек, альбом или плейлист) в **Скачать**: Turntable загрузит её через yt-dlp и вложит в ящик пластинкой. Без аккаунта, ключей и сервера. Очередь видна на экране **Загрузки**, а *Добавить в альбом / плейлист* на деке кладёт один трек прямо в открытый.
 - **Статистика** – время на проигрывателе, минуты по дням, ваши часы прослушивания, тепловая карта за полгода, топ альбомов и треков, серии дней.
 - **Шафл и луп** – в альбоме шафл остаётся внутри него; в мини-плеере и трее можно выбрать: выкл, альбом или все альбомы.
 - **Русский и английский** – весь интерфейс, переключается в настройках.
@@ -141,7 +143,7 @@ Windows 10/11, x64. Файлы копируются в собственную п
 
 ## Скачать и установить
 
-1. Откройте страницу **[Releases](../../releases)** этого репозитория и скачайте **`Turntable-Setup-0.1.2.exe`** из блока *Assets*.
+1. Откройте страницу **[Releases](../../releases)** этого репозитория и скачайте **`Turntable-Setup-0.1.3.exe`** из блока *Assets*.
 2. Запустите его. Windows может написать *«Система Windows защитила ваш компьютер»* – установщик пока не подписан сертификатом: нажмите **Подробнее → Выполнить в любом случае** (*More info → Run anyway*).
 3. Нажмите **Install** (**Установить**). Установка занимает несколько секунд; оставьте галочку «Запустить после установки» – Turntable запустится сам. Язык установщика переключается кнопками **RU / EN** в правом верхнем углу (по умолчанию – язык системы).
 
@@ -159,7 +161,7 @@ Windows 10/11, x64. Файлы копируются в собственную п
 
 ## Сборка из исходников
 
-Исходный код лежит в папке [`source/`](source). Нужны: Windows, Node.js 20+, pnpm, Rust (stable, MSVC) и WebView2. Команды – в разделе *Build from source* выше. Импорт из SoundCloud в публичной сборке выключен: ему нужны ваши собственные ключи (`.env.example` → `.env.local`).
+Исходный код лежит в папке [`source/`](source). Нужны: Windows, Node.js 20+, pnpm, Rust (stable, MSVC) и WebView2. Команды – в разделе *Build from source* выше. Скачивание с SoundCloud работает из коробки: Turntable один раз загружает yt-dlp в свою папку, ключи не нужны.
 
 ## Лицензия
 

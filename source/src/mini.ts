@@ -44,7 +44,7 @@ export async function enterMini(): Promise<void> {
   const state = useApp.getState();
   if (state.transitionBusy || state.mini) return;
   // whatever is playing stays playing; the full screens come back on the player (or the crate)
-  useApp.setState({ mini: true, scSheet: false, screen: state.activeAlbumId ? "player" : state.screen === "import" || state.screen === "playlist" ? "crate" : state.screen });
+  useApp.setState({ mini: true, download: false, screen: state.activeAlbumId ? "player" : state.screen === "import" || state.screen === "playlist" ? "crate" : state.screen });
   document.body.classList.add("mini-mode");
   applyMiniScale();
   if (!isTauri()) return;

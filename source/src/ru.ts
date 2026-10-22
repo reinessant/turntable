@@ -16,12 +16,11 @@ export const RU: Record<string, string> = {
   "of": "из", "Recently added": "Недавно добавленные", "Title": "Название", "Artist": "Исполнитель",
   "Search": "Поиск", "Search (Ctrl+K)": "Поиск (Ctrl+K)", "Search the library": "Поиск по библиотеке",
   "Playlist": "Плейлист", "A playlist": "Плейлист", "Import": "Импорт", "Import an album": "Импортировать альбом", "New playlist": "Новый плейлист",
-  "From SoundCloud": "Из SoundCloud", "Remove this record from the crate (it stays on SoundCloud)": "Убрать пластинку из крейта (в SoundCloud она останется)",
   "Remove": "Убрать", "Show only": "Показать только", "Disable preview": "Выключить превью", "Enable preview": "Включить превью",
   "Previewing": "Превью", "Preview ready": "Превью готово", "Preview off": "Превью выключено", "Scroll to flip · Enter to play": "Колесо — листать · Enter — играть",
 
   // player
-  "Open on SoundCloud": "Открыть в SoundCloud", "Edit album": "Изменить альбом", "Edit playlist": "Изменить плейлист",
+"Edit album": "Изменить альбом", "Edit playlist": "Изменить плейлист",
   "Previous track": "Предыдущий трек", "Next track": "Следующий трек", "Pause": "Пауза", "Play": "Играть", "Stop": "Стоп",
   "Track": "Трек", "Seek": "Перемотка", "Like album": "В избранное", "Mute": "Выключить звук", "Unmute": "Включить звук", "Volume": "Громкость",
   "Loading lyrics…": "Загружаю текст…", "No lyrics": "Нет текста",
@@ -142,16 +141,25 @@ export const RU: Record<string, string> = {
   "Plug in": "Включить", "Unplug": "Выключить",
   "Nothing on the deck — pick a record in": "На проигрывателе пусто — выберите пластинку во вкладке", "on": "вкл", "units": "приборов", "Reset rack": "Сбросить рэк",
   "Scroll to flip · drag a knob · double-click resets": "Колесо — листать · тяните ручку · двойной клик — сброс",
-  "SoundCloud isn't set up in this build yet (app keys missing)": "SoundCloud в этой сборке ещё не настроен (нет ключей приложения)", "Waiting for SoundCloud…": "Жду SoundCloud…", "Connect SoundCloud": "Подключить SoundCloud",
-  "Connected as": "Вы вошли как", "Add from SoundCloud…": "Добавить из SoundCloud…", "SoundCloud disconnected": "SoundCloud отключён", "Disconnect": "Отключить",
   "Touch platter": "Придержать пластинку", "Drag tonearm to seek": "Тяните тонарм, чтобы перемотать",
+  "Album": "Альбом", "album": "альбом", "Add": "Добавить",
 
-  // SoundCloud
-  "is in the crate": "в крейте", "Add from SoundCloud": "Добавить из SoundCloud", "Link": "Ссылка", "Playlists & albums": "Плейлисты и альбомы", "Likes": "Лайки",
-  "Paste a soundcloud.com link — track, album or playlist": "Вставьте ссылку soundcloud.com — трек, альбом или плейлист", "Looking…": "Ищу…", "Find": "Найти", "Album": "Альбом", "album": "альбом",
-  "This track can only be played on SoundCloud.": "Этот трек можно слушать только в SoundCloud.", "Add as a single": "Добавить как сингл",
-  "A playlist or an album becomes one record. A single track becomes a 7″ of its own.": "Плейлист или альбом становится одной пластинкой. Одиночный трек — отдельной 7″.",
-  "Loading your playlists…": "Загружаю ваши плейлисты…", "No playlists or albums on this account yet.": "В этом аккаунте пока нет плейлистов и альбомов.", "Filter likes": "Фильтр лайков", "Select all": "Выбрать все",
-  "Loading your likes…": "Загружаю ваши лайки…", "SoundCloud only": "только SoundCloud", "Record title": "Название пластинки", "Pressing…": "Прессую…", "Add": "Добавить", "as a record": "как пластинку",
-  "Pick tracks to press a record": "Выберите треки, чтобы отпрессовать пластинку", "Add to crate": "Добавить в крейт", "Adding…": "Добавляю…", "In the crate": "В крейте"
+  // download
+  "SoundCloud asked to slow down, continuing in": "SoundCloud просит не спешить, продолжу через", "SoundCloud asked to slow down": "SoundCloud просит не спешить",
+  "SoundCloud kept refusing this track": "SoundCloud упорно отказывает для этого трека", "SoundCloud is limiting requests right now. Try again in a minute.": "SoundCloud сейчас ограничивает запросы. Попробуйте через минуту.",
+  "Add to album": "Добавить в альбом", "Add to playlist": "Добавить в плейлист", "Paste a link to one SoundCloud track": "Вставьте ссылку на один трек SoundCloud", "track added": "трек добавлен",
+  "Adding…": "Добавляю…", "That's a playlist or an album — paste a link to one track.": "Это плейлист или альбом — вставьте ссылку на один трек.", "The track goes to the end of this record.": "Трек попадёт в конец этой пластинки.",
+  "This playlist is gone.": "Этого плейлиста уже нет.", "This album is gone.": "Этого альбома уже нет.", "The track could not be stored.": "Не удалось сохранить трек.",
+  "Could not start the downloader": "Не удалось запустить загрузчик", "Could not get the downloader": "Не удалось получить загрузчик", "The downloader failed": "Загрузчик завершился с ошибкой",
+  "The downloader took too long": "Загрузчик завис и был остановлен", "The downloader failed its integrity check": "Загрузчик не прошёл проверку целостности", "Could not check the downloader file": "Не удалось проверить файл загрузчика",
+  "Bad download id": "Неверный номер загрузки", "SoundCloud kept refusing": "SoundCloud продолжал отказывать",
+  "Download": "Скачать", "Download from SoundCloud": "Скачать из SoundCloud", "Downloads": "Загрузки", "skipped": "пропущено", "Add from SoundCloud": "Добавить из SoundCloud", "in progress": "в процессе", "In the queue": "В очереди", "In the crate": "В крейте",
+  "Show in the crate": "Показать в крейте", "Retry": "Повторить", "Queue and history": "Очередь и история", "Clear finished": "Очистить завершённые",
+  "Could not download": "Не удалось скачать", "Cancelled": "Отменено", "Nothing downloaded yet. Press Download and paste a link.": "Пока ничего не скачано. Нажмите «Скачать» и вставьте ссылку.", "Added to Downloads": "Добавлено в загрузки",
+  "Paste a soundcloud.com link — track, album or playlist": "Вставьте ссылку soundcloud.com — трек, альбом или плейлист",
+  "Looking…": "Ищу…", "Find": "Найти", "Download to the crate": "Скачать в крейт", "Downloading…": "Скачиваю…", "is in the crate": "в крейте",
+  "An album or a playlist becomes one record in the crate. A single track becomes a record of its own.": "Альбом или плейлист становится одной пластинкой в крейте. Одиночный трек — отдельной пластинкой.",
+  "That isn't a soundcloud.com link": "Это не ссылка soundcloud.com", "Nothing to download at this link.": "По этой ссылке нечего скачивать.",
+  "Getting the downloader (one time, about 17 MB)…": "Загружаю загрузчик (один раз, около 17 МБ)…", "Nothing could be downloaded.": "Ничего не удалось скачать.",
+  "The downloader returned nothing": "Загрузчик ничего не вернул", "The downloader file looks wrong": "Файл загрузчика выглядит неправильно"
 };

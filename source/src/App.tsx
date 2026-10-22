@@ -15,13 +15,15 @@ import { PluginsScreen } from "./PluginsScreen";
 import { SettingsScreen } from "./SettingsScreen";
 import { Particles } from "./Particles";
 import { Search } from "./Search";
+import { DownloadSheet, DownloadsScreen } from "./DownloadsScreen";
+import { loadDownloads, seedDemoDownloads } from "./downloads";
 import { loadSettings, settings, useSettings } from "./settings";
 import { referenceAlbum, referenceLightAlbum } from "./referenceDemo";
 import { seedDemoCrate } from "./demo";
 import { cueTrack, pauseOrResume, nextTrack, previousTrack, startAlbumNow, stopAlbum } from "./player";
 import { RecordTransition } from "./RecordTransition";
 import { REVEAL } from "./transitionTiming";
-import { crateAlbums, mergeRemoteAlbums, setCrateGenre, useApp } from "./state";
+import { crateAlbums, setCrateGenre, useApp } from "./state";
 import { PlaylistScreen } from "./PlaylistScreen";
 import { StatsScreen } from "./StatsScreen";
 import { loadPlaylists, startPlaylistSync } from "./playlists";
@@ -29,8 +31,6 @@ import { debugRun, seedDemoStats, startStats, useStats } from "./stats";
 import * as player from "./player";
 import * as mini from "./mini";
 import { t, useLang } from "./lang";
-import { scRecords, scSession } from "./soundcloud";
-import { ScSheet } from "./ScSheet";
 import { MiniPlayer } from "./MiniPlayer";
 import { Intro } from "./Intro";
 import { enterMini, exitMini } from "./mini";
@@ -91,11 +91,11 @@ export default function App() {
   const busy = useApp((state) => state.transitionBusy);
   const previewsEnabled = useApp((state) => state.previewsEnabled);
   const message = useApp((state) => state.message);
-  const scSheet = useApp((state) => state.scSheet);
   const mini = useApp((state) => state.mini);
   // a language change rebuilds the screens (every text is read once, when it is drawn)
   const lang = useLang((state) => state.lang);
   const searchOpen = useApp((state) => state.search);
+  const downloadOpen = useApp((state) => state.download);
   const welcomeOpen = useApp((state) => state.welcome), guideOpen = useApp((state) => state.guide);
   const welcomeForced = useRef(false);
   const settingsLoaded = useSettings((state) => state.loaded), welcomed = useSettings((state) => state.welcomed);
@@ -157,12 +157,8 @@ export default function App() {
   useEffect(() => {
     if (isTauri()) {
       void loadPlaylists();
+      void loadDownloads();
       void loadAlbums().then((value) => useApp.setState({ albums: value.sort((a, b) => b.addedAt - a.addedAt) }))
-        .then(async () => {
-          // records added from SoundCloud live in the library like any other
-          useApp.setState({ scUser: await scSession() });
-          mergeRemoteAlbums(await scRecords());
-        })
         .catch((error) => useApp.setState({ message: String(error) }));
       void loadSettings();
     } else if (import.meta.env.DEV) {
@@ -187,8 +183,9 @@ export default function App() {
         position: visualDemo ? reference === "light" ? 20 : 41 : 0,
         duration: visualDemo ? album.tracks[index].duration : 0,
         phase: visualDemo ? "PLAYING" : "STOPPED", playing: visualDemo,
-        scSheet: reference === "sc"
+        section: reference === "downloads" ? "downloads" : "albums"
       });
+      if (reference === "downloads") seedDemoDownloads();
       if (reference === "mini" || reference === "mini-play") void enterMini().then(() => { if (reference === "mini-play") { useApp.setState({ screen: "player" }); void startAlbumNow(album, .2, 3); } });
       // dev: a long synced line on the mini strip (the demo tones have no lyrics of their own)
       if (reference === "mini-play") setTimeout(() => useApp.setState({ lyrics: { mode: "synced", source: "dev", plain: "", lines: [
@@ -258,14 +255,14 @@ export default function App() {
       const state = useApp.getState();
       if (import.meta.env.DEV && event.key.toLowerCase() === "s") { gsap.globalTimeline.timeScale(gsap.globalTimeline.timeScale() < 1 ? 1 : .2); return; }
       if (import.meta.env.DEV && event.key.toLowerCase() === "o") { document.querySelector(".app")?.classList.toggle("flight-outline"); return; }
-      if (state.transitionBusy || state.scSheet || state.mini || state.search || state.welcome || state.guide) return;
+      if (state.transitionBusy || state.download || state.mini || state.search || state.welcome || state.guide) return;
       // search: Ctrl+K / Ctrl+F (by key position, so a Cyrillic layout works too) or "/"
       if (((event.ctrlKey || event.metaKey) && (event.code === "KeyK" || event.code === "KeyF")) || (event.key === "/" && !event.ctrlKey && !event.altKey)) {
         if (state.screen !== "import") { event.preventDefault(); useApp.setState({ search: true }); }
         return;
       }
       if (import.meta.env.DEV && event.key.toLowerCase() === "d") useApp.setState({ debug: !state.debug });
-      if (state.section === "settings") return;
+      if (state.section === "settings" || state.section === "downloads") return;
       if (state.section === "plugins") {
         // the rack owns the keyboard (knobs take arrows); only play/pause passes through
         if (event.code === "Space" && !(event.target instanceof HTMLElement && event.target.closest(".fx-knob-body, button"))) { event.preventDefault(); if (state.activeAlbumId) pauseOrResume(); }
@@ -321,6 +318,7 @@ export default function App() {
     <Backdrop album={roomAlbum} screen={screen} />
     <TitleBar />
     {screen !== "import" && screen !== "playlist" && <TabBar disabled={busy} />}
+    {section === "downloads" && screen !== "import" && screen !== "playlist" && <ErrorBoundary name="Downloads"><DownloadsScreen /></ErrorBoundary>}
     {section === "stats" && screen !== "import" && screen !== "playlist" && <ErrorBoundary name="Stats"><StatsScreen /></ErrorBoundary>}
     {section === "plugins" && screen !== "import" && screen !== "playlist" && <ErrorBoundary name="Plugins"><PluginsScreen /></ErrorBoundary>}
     {section === "settings" && screen !== "import" && screen !== "playlist" && <ErrorBoundary name="Settings"><SettingsScreen /></ErrorBoundary>}
@@ -369,7 +367,7 @@ export default function App() {
       else useApp.setState({ screen: next.activeAlbumId ? "player" : "crate" });
       setEditingPlaylist(null);
     }} /></ErrorBoundary>}
-    {scSheet && screen === "crate" && section === "albums" && <ErrorBoundary name="SoundCloud"><ScSheet /></ErrorBoundary>}
+    {downloadOpen && screen !== "import" && screen !== "playlist" && <ErrorBoundary name="Download"><DownloadSheet key={String(downloadOpen)} albumId={typeof downloadOpen === "string" ? downloadOpen : undefined} /></ErrorBoundary>}
     {searchOpen && !transition && <ErrorBoundary name="Search"><Search onPlay={playFrom} onShow={showInCrate} /></ErrorBoundary>}
     {message && <button className="message" onClick={() => useApp.setState({ message: "" })}>{message} ×</button>}
     {import.meta.env.DEV && <Debug timeline={timeline} />}

@@ -5,9 +5,8 @@ import { asset, setAlbumLiked } from "./library";
 import { cueTrack, cycleRepeat, nextTrack, pauseOrResume, previousTrack, seek, setShuffle, toggleShuffleAlbum } from "./player";
 import { RepeatIcon, ShuffleIcon } from "./PlayModeIcons";
 import { useApp } from "./state";
+import { DownloadIcon } from "./DownloadIcon";
 import { DECK_GEOMETRY, DeckView } from "./DeckView";
-import { ArrowOut, ScLogo } from "./ScParts";
-import { openOnSoundCloud } from "./soundcloud";
 import { useScrub } from "./scrub";
 import { count, t } from "./lang";
 import type { Album } from "./types";
@@ -189,10 +188,9 @@ export function PlayerScreen({ album, onBack, onEdit, demo = false }: {
   return <div className={"screen player-screen layout-" + layout.name + (playing ? " playing" : "")}>
     <header className="header">
       <button className="pill-btn" onClick={onBack}><Icon name="caret-left" size={14} />{t("Crate")}</button>
-      {album.source?.kind === "soundcloud"
-        ? <button className="pill-btn sc-source" title={t("Open on SoundCloud")} onClick={() => void openOnSoundCloud(album.source!.url).catch((error) => useApp.setState({ message: String(error) }))}><ScLogo size={8} />SoundCloud<ArrowOut size={10} /></button>
-        : <div className="hright"><button className="pill-btn search-btn" aria-label={t("Search the library")} title={t("Search (Ctrl+K)")} onClick={() => useApp.setState({ search: true })}><Icon name="magnifying-glass" size={14} />{t("Search")}<kbd>Ctrl K</kbd></button>
-          <button className="pill-btn" onClick={onEdit}><Icon name="pencil-simple" size={14} />{album.kind === "playlist" ? t("Edit playlist") : t("Edit album")}</button></div>}
+      <div className="hright"><button className="pill-btn search-btn" aria-label={t("Search the library")} title={t("Search (Ctrl+K)")} onClick={() => useApp.setState({ search: true })}><Icon name="magnifying-glass" size={14} />{t("Search")}<kbd>Ctrl K</kbd></button>
+        <button className="pill-btn dl-open" onClick={() => useApp.setState({ download: album.id })}><DownloadIcon />{album.kind === "playlist" ? t("Add to playlist") : t("Add to album")}</button>
+        <button className="pill-btn" onClick={onEdit}><Icon name="pencil-simple" size={14} />{album.kind === "playlist" ? t("Edit playlist") : t("Edit album")}</button></div>
     </header>
     <TrackCarousel album={album} cover={cover} demo={demo} />
     <section className="left">
@@ -238,7 +236,7 @@ export function PlayerScreen({ album, onBack, onEdit, demo = false }: {
         const flip = (liked: boolean) => useApp.setState({ albums: useApp.getState().albums.map((item) => item.id === album.id ? { ...item, liked } : item) });
         const liked = !album.liked;
         flip(liked);
-        if (!isTauri() || album.source) return;   // streaming records keep the heart in this session only
+        if (!isTauri()) return;
         try { await setAlbumLiked(album.id, liked); }
         catch (error) { flip(!liked); useApp.setState({ message: String(error) }); }
       }}><Icon name={album.liked ? "heart-fill" : "heart"} /></button>
