@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { TrayMenu } from "./TrayMenu";
+import { installTooltips } from "./tooltip";
 import "./styles.css";
 
 /* The screens are laid out on a 1920×1080 artboard and fitted to the window with CSS `zoom`
@@ -16,6 +17,8 @@ function fit(): void {
   root.setProperty("--ox", ((innerWidth - 1920 * scale) / 2 / scale).toFixed(2) + "px");
   root.setProperty("--oy", ((innerHeight - 1080 * scale) / 2 / scale).toFixed(2) + "px");
 }
+
+installTooltips();     // hover tips in our own look, in every window
 
 // the same bundle also draws the tray's quick menu, in its own small window
 if (new URLSearchParams(location.search).get("view") === "traymenu") {

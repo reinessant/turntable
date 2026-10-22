@@ -91,6 +91,12 @@ export default function App() {
   const busy = useApp((state) => state.transitionBusy);
   const previewsEnabled = useApp((state) => state.previewsEnabled);
   const message = useApp((state) => state.message);
+  // a notice fades by itself: a few seconds, longer for a long text
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(() => useApp.setState({ message: "" }), Math.min(12000, Math.max(5000, message.length * 70)));
+    return () => clearTimeout(timer);
+  }, [message]);
   const mini = useApp((state) => state.mini);
   // a language change rebuilds the screens (every text is read once, when it is drawn)
   const lang = useLang((state) => state.lang);
@@ -369,7 +375,7 @@ export default function App() {
     }} /></ErrorBoundary>}
     {downloadOpen && screen !== "import" && screen !== "playlist" && <ErrorBoundary name="Download"><DownloadSheet key={String(downloadOpen)} albumId={typeof downloadOpen === "string" ? downloadOpen : undefined} /></ErrorBoundary>}
     {searchOpen && !transition && <ErrorBoundary name="Search"><Search onPlay={playFrom} onShow={showInCrate} /></ErrorBoundary>}
-    {message && <button className="message" onClick={() => useApp.setState({ message: "" })}>{message} ×</button>}
+    {message && <button className="message" role="status" aria-live="polite" onClick={() => useApp.setState({ message: "" })}><span>{message}</span><i aria-hidden="true">×</i></button>}
     {import.meta.env.DEV && <Debug timeline={timeline} />}
     {intro && <Intro skip={skipIntro} onDone={() => setIntro(false)} />}
     {welcomeOpen && <ErrorBoundary name="Welcome"><Welcome /></ErrorBoundary>}

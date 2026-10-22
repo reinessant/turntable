@@ -22,7 +22,7 @@ export const RU: Record<string, string> = {
   // player
 "Edit album": "Изменить альбом", "Edit playlist": "Изменить плейлист",
   "Previous track": "Предыдущий трек", "Next track": "Следующий трек", "Pause": "Пауза", "Play": "Играть", "Stop": "Стоп",
-  "Track": "Трек", "Seek": "Перемотка", "Like album": "В избранное", "Mute": "Выключить звук", "Unmute": "Включить звук", "Volume": "Громкость",
+  "Track": "Трек", "Seek": "Перемотка", "Like album": "В избранное", "Mute": "Выключить звук", "Unmute": "Включить звук", "Volume": "Громкость", "Lower arm": "Опустить иглу", "Your most listened playlist:": "Ваш самый слушаемый плейлист:", "Lift arm": "Поднять иглу",
   "Loading lyrics…": "Загружаю текст…", "No lyrics": "Нет текста",
   "Stop shuffling the library": "Выключить перемешивание библиотеки", "Shuffle this album": "Перемешать этот альбом",
   "Shuffling the whole library — click to stop": "Перемешана вся библиотека — нажмите, чтобы выключить",

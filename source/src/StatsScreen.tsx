@@ -256,7 +256,9 @@ export function StatsScreen() {
   const byId = useMemo(() => new Map(albums.map((a) => [a.id, a])), [albums]);
   const local = albums.filter((a) => a.kind !== "playlist");
 
-  const albumRows = Object.entries(data.albums).map(([id, a]) => ({ id, ...a }));
+  // a playlist is not an album: what was heard through one counts for its albums; a playlist's own files stay out of the album lists (the playlist gets its own fact below)
+  const albumRows = Object.entries(data.albums).filter(([, a]) => !a.playlist).map(([id, a]) => ({ id, ...a }));
+  const topPlaylist = Object.values(data.playlists).sort((a, b) => b.sec - a.sec)[0];
   const trackRows = Object.entries(data.tracks).map(([key, t]) => ({ key, ...t }));
   const sortedAlbums = [...albumRows].sort((a, b) => metric === "time" ? b.sec - a.sec : b.plays - a.plays || b.sec - a.sec);
   const sortedTracks = [...trackRows].sort((a, b) => metric === "time" ? b.sec - a.sec : b.plays - a.plays || b.sec - a.sec);
@@ -310,10 +312,10 @@ export function StatsScreen() {
         <Card title={t("Days of the week")} note={weekend > .42 ? t("A weekend listener") : weekend < .22 ? t("A weekday listener") : t("Evenly spread")} span={4}><Weekdays weekdays={data.weekdays} /></Card>
 
         <Card title={t("Top albums")} note={t("Records you come back to")} span={6} right={<Segmented label={t("Rank by")} value={metric} options={[{ id: "time", name: t("Time") }, { id: "plays", name: t("Plays") }]} onChange={setMetric} />}>
-          <Ranked empty={t("Nothing yet.")} rows={sortedAlbums.slice(0, 8).map((a) => ({ key: a.id, label: a.title, sub: a.playlist ? t("Playlist") : a.artist, value: metric === "time" ? a.sec : a.plays, text: metric === "time" ? duration(a.sec, true) : plural(a.plays, "play"), cover: thumbOf(byId.get(a.id)) }))} />
+          <Ranked empty={t("Nothing yet.")} rows={sortedAlbums.slice(0, 8).map((a) => ({ key: a.id, label: a.title, sub: a.artist, value: metric === "time" ? a.sec : a.plays, text: metric === "time" ? duration(a.sec, true) : plural(a.plays, "play"), cover: thumbOf(byId.get(a.id)) }))} />
         </Card>
         <Card title={t("Top tracks")} note={metric === "time" ? t("By time listened") : t("By number of plays")} span={6}>
-          <Ranked empty={t("Nothing yet.")} rows={sortedTracks.slice(0, 8).map((t) => ({ key: t.key, label: t.title, sub: t.artist + " · " + t.album, value: metric === "time" ? t.sec : t.plays, text: metric === "time" ? duration(t.sec, true) : plural(t.plays, "play"), cover: thumbOf(byId.get(t.albumId)) }))} />
+          <Ranked empty={t("Nothing yet.")} rows={sortedTracks.slice(0, 8).map((t) => ({ key: t.key, label: t.title, sub: [t.artist, t.album].filter(Boolean).join(" · "), value: metric === "time" ? t.sec : t.plays, text: metric === "time" ? duration(t.sec, true) : plural(t.plays, "play"), cover: thumbOf(byId.get(t.albumId)) }))} />
         </Card>
 
         <Card title={t("Top artists")} span={6}>
@@ -333,6 +335,7 @@ export function StatsScreen() {
             {topAlbum && data.total > 0 && <Fact big={Math.round(topAlbum.sec / data.total * 100) + "%"} text={t("Share of everything you played:") + " " + topAlbum.title} />}
             {mostSkipped && mostSkipped.skips >= 2 && <Fact big={plural(mostSkipped.skips, "skip")} text={t("The track you leave most often:") + " " + mostSkipped.title} />}
             {data.viaPlaylists > 0 && <Fact big={Math.round(data.viaPlaylists / data.total * 100) + "%"} text={t("Share of your time that came from playlists; the rest is whole albums")} />}
+            {topPlaylist && topPlaylist.sec >= 60 && <Fact big={duration(topPlaylist.sec)} text={t("Your most listened playlist:") + " " + topPlaylist.title} />}
             <Fact big={t(mood.name)} text={t("Your listening personality —") + " " + Math.round(mood.share * 100) + "% " + t("of it") + " " + (mood.from === 0 ? t("after midnight") : t("from") + " " + String(mood.from).padStart(2, "0") + ":00 " + t("to") + " " + String(mood.to % 24).padStart(2, "0") + ":00")} />
           </div>
         </Card>

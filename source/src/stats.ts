@@ -84,7 +84,7 @@ function sanitize(raw: unknown): StatsData {
   for (const group of ["artists", "genres"] as const) for (const [key, value] of Object.entries(rec(s[group]))) if (num(value)) out[group][key] = num(value);
   for (const [key, value] of Object.entries(rec(s.albums))) {
     const a = rec(value);
-    out.albums[key] = { title: text(a.title), artist: text(a.artist), sec: num(a.sec), plays: num(a.plays), genres: strings(a.genres) };
+    out.albums[key] = { title: text(a.title), artist: text(a.artist), sec: num(a.sec), plays: num(a.plays), genres: strings(a.genres), ...(a.playlist === true ? { playlist: true } : {}) };
   }
   for (const [key, value] of Object.entries(rec(s.tracks))) {
     const t = rec(value);
@@ -93,7 +93,12 @@ function sanitize(raw: unknown): StatsData {
   for (const [key, value] of Object.entries(rec(s.playlists))) {
     const p = rec(value);
     out.playlists[key] = { title: text(p.title), sec: num(p.sec), plays: num(p.plays) };
+    if (out.albums[key]) out.albums[key].playlist = true;          // a playlist whose own files were counted as an "album" before it was marked
   }
+  // older counts took the word "Playlist" for the artist of a playlist's own files
+  const stand = (name: string) => name === "Playlist" || name === "Плейлист";
+  for (const name of Object.keys(out.artists)) if (stand(name)) delete out.artists[name];
+  for (const track of Object.values(out.tracks)) if (out.playlists[track.albumId] && stand(track.artist)) track.artist = "";
   return out;
 }
 async function read(): Promise<StatsData> {
@@ -149,7 +154,8 @@ function count(seconds: number): void {
   if (!album || !track) return;
   const sourceId = track.sourceAlbumId ?? album.id;
   const source: Album = state.albums.find((item) => item.id === sourceId) ?? album;
-  const artist = track.artist ?? album.artist, albumTitle = track.albumTitle ?? album.title;
+  // a file added to a playlist from the computer may have no artist: the word "Playlist" in its place is not one
+  const artist = track.artist ?? (source.kind === "playlist" ? "" : album.artist), albumTitle = track.albumTitle ?? album.title;
   const key = sourceId + "/" + track.id;
   const now = new Date();
 
@@ -167,11 +173,12 @@ function count(seconds: number): void {
   bump(data.days, dayKey(now), seconds);
   data.hours[now.getHours()] += seconds;
   data.weekdays[(now.getDay() + 6) % 7] += seconds;
-  bump(data.artists, artist, seconds);
+  if (artist) bump(data.artists, artist, seconds);
   for (const genre of source.genres ?? []) bump(data.genres, genre, seconds);
 
   const albumStat = data.albums[sourceId] ??= { title: source.title, artist: source.artist, sec: 0, plays: 0, genres: source.genres ?? [] };
   albumStat.title = source.title; albumStat.artist = source.artist; albumStat.genres = source.genres ?? []; albumStat.sec += seconds;
+  if (source.kind === "playlist") albumStat.playlist = true;      // files added to a playlist from the computer belong to the playlist itself: not an album
   const trackStat = data.tracks[key] ??= { title: track.title, artist, album: albumTitle, albumId: sourceId, sec: 0, plays: 0, skips: 0 };
   trackStat.title = track.title; trackStat.sec += seconds;
   let playlistStat: StatsData["playlists"][string] | null = null;

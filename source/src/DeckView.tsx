@@ -116,9 +116,14 @@ export function DeckView({ album, cover, visualDemo = false, form = "landscape",
     deck.current?.setArm(dragRadius ?? (phase === "STOPPED" || phase === "CUEING_OUT" ? null : radius));
     host.current?.classList.toggle("needle-down", dragRadius === null && !cueLifted && phase !== "STOPPED");
     host.current?.querySelector(".led")?.classList.toggle("on", playing || visualDemo);
-    host.current?.querySelector<HTMLElement>("[data-act=play]")?.setAttribute("data-tip", playing ? "Pause" : "Play");
-    host.current?.querySelector<HTMLElement>("[data-act=cue]")?.setAttribute("data-tip", cueLifted ? "Lower arm" : "Lift arm");
   }, [radius, dragRadius, phase, playing, visualDemo, cueLifted, finish, vinyl]);
+  // the hover tips of the deck's own controls (the deck markup carries English ones; a new deck brings them back)
+  useEffect(() => {
+    const tip = (act: string, text: string) => host.current?.querySelector<HTMLElement>(`[data-act=${act}]`)?.setAttribute("data-tip", text);
+    tip("play", playing ? t("Pause") : t("Play"));
+    tip("cue", cueLifted ? t("Lower arm") : t("Lift arm"));
+    tip("volume", `${t("Volume")} ${Math.round(volume * 100)}%`);
+  }, [album.id, cover, width, form, finish, vinyl, playing, cueLifted, volume]);
   useEffect(() => {
     host.current?.querySelector<HTMLElement>("[data-act=volume]")?.style.setProperty("--volume-angle", `${(volume - .5) * 260}deg`);
     host.current?.querySelector<HTMLElement>(".vol-ring")?.style.setProperty("--vol", String(volume));
