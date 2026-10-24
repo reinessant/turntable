@@ -344,6 +344,15 @@ fn ytdlp_present(path: &Path) -> bool { fs::metadata(path).map(|m| m.len() > 5_0
 fn is_soundcloud_link(url: &str) -> bool {
     let lower = url.trim().to_ascii_lowercase();
     ["https://soundcloud.com/", "https://www.soundcloud.com/", "https://m.soundcloud.com/", "https://on.soundcloud.com/"].iter().any(|prefix| lower.starts_with(prefix))
+        || is_track_api_link(&lower)
+}
+
+/// SoundCloud lists the tracks of a long set after the fifth by number only: `https://api-v2.soundcloud.com/tracks/<id>`
+/// (with a `?secret_token=…` for a private set). yt-dlp resolves those like any track link.
+fn is_track_api_link(lower: &str) -> bool {
+    let Some(rest) = ["https://api-v2.soundcloud.com/tracks/", "https://api.soundcloud.com/tracks/"].iter().find_map(|prefix| lower.strip_prefix(prefix)) else { return false };
+    let digits = rest.bytes().take_while(|b| b.is_ascii_digit()).count();
+    digits > 0 && (rest.len() == digits || rest[digits..].starts_with('?') || rest[digits..].starts_with('/'))
 }
 
 /// The host of an https address, lower-cased; None for anything with a userinfo part or a port we do not expect.
@@ -421,10 +430,18 @@ fn rate_limited(text: &str) -> bool {
     text.contains("HTTP Error 403") || text.contains("HTTP Error 429") || text.contains("Too Many Requests")
 }
 
-/// Runs yt-dlp; if it fails, updates it once per session and tries again.
+/// A failure that is the track's own (removed, private, not for this country): a newer yt-dlp would not change it.
+fn track_is_gone(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    ["http error 404", "not available", "private", "removed", "has been deleted", "geo", "premium", "does not exist"].iter().any(|mark| lower.contains(mark))
+}
+
+/// Runs yt-dlp; if it fails, updates it once per session and tries again (updating takes every other run offline for
+/// a while, so a track that is simply gone, one among many in a set, must not trigger it).
 fn run_ytdlp_retry(exe: &Path, args: &[String], limit: u64) -> Result<std::process::Output, String> {
     let output = run_ytdlp(exe, args, limit)?;
-    if output.status.success() || rate_limited(&String::from_utf8_lossy(&output.stderr)) || YTDLP_UPDATED.swap(true, Ordering::SeqCst) { return Ok(output); }
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    if output.status.success() || rate_limited(&stderr) || track_is_gone(&stderr) || YTDLP_UPDATED.swap(true, Ordering::SeqCst) { return Ok(output); }
     update_ytdlp(exe);
     run_ytdlp(exe, args, limit)
 }
@@ -822,6 +839,24 @@ mod download_tests {
         assert!(!is_soundcloud_link("https://soundcloud.com.evil.com/x"));
         assert!(!is_soundcloud_link("https://evilsoundcloud.com/x"));
         assert!(!is_soundcloud_link("https://example.com/https://soundcloud.com/"));
+    }
+
+    #[test]
+    fn a_vanished_track_does_not_call_for_an_update() {
+        assert!(track_is_gone("ERROR: [soundcloud] 99: Unable to download JSON metadata: HTTP Error 404: Not Found"));
+        assert!(track_is_gone("ERROR: [soundcloud] 99: This track is not available in your country"));
+        assert!(!track_is_gone("ERROR: [soundcloud] 99: Unable to extract client id"));
+        assert!(!track_is_gone("ERROR: Unsupported URL: https://soundcloud.com/x"));
+    }
+
+    #[test]
+    fn tracks_of_a_set_listed_by_number_pass() {
+        assert!(is_soundcloud_link("https://api-v2.soundcloud.com/tracks/2165025588"));
+        assert!(is_soundcloud_link("https://api.soundcloud.com/tracks/2165025588?secret_token=s-abc"));
+        assert!(!is_soundcloud_link("https://api-v2.soundcloud.com/tracks/"));
+        assert!(!is_soundcloud_link("https://api-v2.soundcloud.com/tracks/12x"));
+        assert!(!is_soundcloud_link("https://api-v2.soundcloud.com/resolve?url=x"));
+        assert!(!is_soundcloud_link("https://api-v2.soundcloud.com.evil.com/tracks/1"));
     }
 
     #[test]

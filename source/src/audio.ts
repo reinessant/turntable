@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { readBlob } from "./library";
+import { audibleEnd, audibleStart, entryTrim, rmsOf } from "./bulk";
+import { BUTTERWORTH_Q_DB, HIGH_HZ, LOW_HZ, bandCurves, bandWindows } from "./crossfadeMath";
 import { Rack } from "./fx";
 import { useApp } from "./state";
 import { useSettings } from "./settings";
@@ -54,6 +56,52 @@ function demoWav(frequency: number): Blob {
   }
   return new Blob([buffer], { type: "audio/wav" });
 }
+const heardEnds = new WeakMap<AudioBuffer, number>();
+/** the end of the audible music in a decoded track (cached: the scan is only ever done once per buffer) */
+function musicEnd(buffer: AudioBuffer): number {
+  let end = heardEnds.get(buffer);
+  if (end === undefined) {
+    end = audibleEnd(channelsOf(buffer), buffer.sampleRate);
+    heardEnds.set(buffer, end);
+  }
+  return end;
+}
+const channelsOf = (buffer: AudioBuffer) => Array.from({ length: buffer.numberOfChannels }, (_, channel) => buffer.getChannelData(channel));
+const heardStarts = new WeakMap<AudioBuffer, number>();
+function musicStart(buffer: AudioBuffer): number {
+  let start = heardStarts.get(buffer);
+  if (start === undefined) { start = audibleStart(channelsOf(buffer), buffer.sampleRate); heardStarts.set(buffer, start); }
+  return start;
+}
+/** A track split into three bands (crossfadeMath.ts explains why this way): what goes in at `input` comes out at `output` as the sum
+    of `low`, `mid` and `high`, each through its own gain. With every gain at 1 the sum has a flat magnitude. */
+interface Split { input: GainNode; low: GainNode; mid: GainNode; high: GainNode; output: GainNode; nodes: AudioNode[] }
+export function buildSplit(context: BaseAudioContext, silent = false): Split {
+  const nodes: AudioNode[] = [];
+  const junction = () => { const node = context.createGain(); nodes.push(node); return node; };
+  const band = () => { const node = junction(); if (silent) node.gain.value = 0; return node; };
+  // a Linkwitz-Riley section: two Butterworth sections in series (their Q, in decibels as Web Audio wants it)
+  const section = (type: "lowpass" | "highpass", hz: number, from: AudioNode, to: AudioNode) => {
+    const a = context.createBiquadFilter(), b = context.createBiquadFilter();
+    for (const filter of [a, b]) { filter.type = type; filter.frequency.value = hz; filter.Q.value = BUTTERWORTH_Q_DB; nodes.push(filter); }
+    from.connect(a).connect(b).connect(to);
+  };
+  const input = junction(), output = junction(), low = band(), mid = band(), high = band(), under = junction(), rest = junction();
+  section("lowpass", LOW_HZ, input, under); section("highpass", LOW_HZ, input, rest);
+  // the bass takes an allpass at HIGH_HZ (its low-pass and high-pass added), so all three bands turn in phase together
+  section("lowpass", HIGH_HZ, under, low); section("highpass", HIGH_HZ, under, low);
+  section("lowpass", HIGH_HZ, rest, mid); section("highpass", HIGH_HZ, rest, high);
+  low.connect(output); mid.connect(output); high.connect(output);
+  return { input, low, mid, high, output, nodes };
+}
+const disposeSplit = (split: Split | null) => { if (split) for (const node of split.nodes) node.disconnect(); };
+
+/** how far ahead of the audio thread a crossfade is scheduled, seconds */
+const LEAD = .03;
+const BAND_NAMES = ["low", "mid", "high"] as const;
+/** equal-power fade curves for a crossfade: the two tracks together keep the same loudness the whole way */
+const FADE_IN = Float32Array.from({ length: 96 }, (_, i) => Math.sin(i / 95 * Math.PI / 2));
+const FADE_OUT = Float32Array.from({ length: 96 }, (_, i) => Math.cos(i / 95 * Math.PI / 2));
 class AudioEngine {
   readonly context = new AudioContext();
   private readonly musicGain = this.context.createGain();
@@ -72,6 +120,15 @@ class AudioEngine {
   private bufferPath = "";
   private preloaded: { path: string; buffer: AudioBuffer } | null = null;
   private source: AudioBufferSourceNode | null = null;
+  /** the fader of the current source (a crossfade fades two of them against each other) */
+  private sourceGain: GainNode | null = null;
+  /** the entry trim of a track that came in by a crossfade (it glides back to 1) */
+  private sourceTrim: GainNode | null = null;
+  /** the bands of the current source, when it plays through the frequency crossfade's splitter */
+  private sourceSplit: Split | null = null;
+  /** the track that is fading out under the one that has just begun */
+  private outgoing: { source: AudioBufferSourceNode; gain: GainNode; filter: BiquadFilterNode | null; split: Split | null; timer: number } | null = null;
+  private lastCrossTry = 0;
   private generation = 0;
   private previewGeneration = 0;
   private position = 0;
@@ -95,6 +152,9 @@ class AudioEngine {
   handOn = false;
   handRate: number | null = null;
   onEnded: (() => void) | null = null;
+  /** Called when the track is within the crossfade of its end: the player starts the next one (crossfadeTo) and says
+      whether it did. It may be asked again a moment later until the answer is yes. */
+  onNearEnd: ((seconds: number) => boolean) | null = null;
   constructor() {
     this.musicAnalyser.fftSize = 2048;
     this.previewAnalyser.fftSize = 2048;
@@ -244,11 +304,40 @@ class AudioEngine {
   }
   private stopSource(): void {
     clearTimeout(this.stopTimer);
+    this.dropOutgoing();
     if (!this.source) return;
     this.source.onended = null;
     try { this.source.stop(); } catch { /* already ended */ }
     this.source.disconnect();
+    this.sourceGain?.disconnect();
+    this.sourceTrim?.disconnect();
+    disposeSplit(this.sourceSplit);
+    this.sourceSplit = null;
+    this.sourceGain = null;
+    this.sourceTrim = null;
     this.source = null;
+  }
+  /** A crossfade's fading-out track is let go (a seek, a pause, another track): with a very short fade, not a click. */
+  private dropOutgoing(): void {
+    const out = this.outgoing;
+    if (!out) return;
+    this.outgoing = null;
+    clearTimeout(out.timer);
+    out.source.onended = null;
+    const now = this.context.currentTime;
+    out.gain.gain.cancelScheduledValues(now);
+    out.gain.gain.setTargetAtTime(0, now, .008);
+    try { out.source.stop(now + .06); } catch { /* already ended */ }
+    window.setTimeout(() => { out.source.disconnect(); out.filter?.disconnect(); disposeSplit(out.split); out.gain.disconnect(); }, 120);
+  }
+  /** The track's own end: the player goes on to the next one. */
+  private watchEnd(source: AudioBufferSourceNode): void {
+    source.onended = () => {
+      if (this.source !== source || !this.musicActive) return;
+      this.source = null;
+      this.musicActive = false;
+      this.onEnded?.();
+    };
   }
   async load(path: string, position = 0): Promise<void> {
     const request = ++this.generation;
@@ -275,16 +364,108 @@ class AudioEngine {
     const source = this.context.createBufferSource();
     source.buffer = this.buffer;
     source.playbackRate.setValueAtTime(rate, this.context.currentTime);
-    source.connect(this.rack.input);
-    source.onended = () => {
-      if (this.source !== source || !this.musicActive) return;
-      this.source = null;
-      this.musicActive = false;
-      this.onEnded?.();
-    };
+    const fader = this.context.createGain();
+    // with a frequency crossfade chosen, the source plays through the splitter from its first sample: the bands are at 1 (flat),
+    // so nothing is heard of it until a crossfade moves their gains
+    const split = this.wantsBands() ? buildSplit(this.context) : null;
+    if (split) { source.connect(split.input); split.output.connect(fader).connect(this.rack.input); }
+    else source.connect(fader).connect(this.rack.input);
+    this.watchEnd(source);
     this.source = source;
+    this.sourceGain = fader;
+    this.sourceSplit = split;
     source.start(0, this.position);
     this.lastClock = this.context.currentTime;
+  }
+  /** a crossfade that hands over band by band is chosen (and a crossfade is on at all) */
+  private wantsBands(): boolean {
+    const settings = useSettings.getState();
+    return settings.crossfade > 0 && settings.crossfadeMode !== "classic";
+  }
+  /** Starts the preloaded track `path` now, under the one that is playing: this one fades out as the next fades in.
+      Returns how long the crossfade lasts, in seconds; 0 (nothing changes) when it cannot be done smoothly: nothing
+      playing, a hand on the record, the track not decoded yet. */
+  crossfadeTo(path: string, seconds: number): number {
+    if (!this.source || !this.sourceGain || !this.musicActive || this.wasPaused || this.handOn || this.ramp || this.speed < .99) return 0;
+    if (this.preloaded?.path !== path) return 0;
+    const next = this.preloaded.buffer, from = musicStart(next);
+    // never longer than the track coming in can carry (40 % of what it has left), whatever the setting says
+    const length = clamp(Math.min(seconds, Math.max(0, next.duration - from) * .4), .2, 12);
+    this.dropOutgoing();                       // a fade that is still going (very short tracks)
+    const old = this.source, oldGain = this.sourceGain, oldSplit = this.sourceSplit, outBuffer = this.buffer!;
+    old.onended = null;
+    const mode = useSettings.getState().crossfadeMode;
+    const byBand = mode !== "classic" && !!oldSplit;       // (a track that began before the mode was chosen has no splitter: classic then)
+    // everything that takes time (scanning the two tracks, building the graph, the curves) is done first, and the clock is read
+    // last: the whole crossfade is then scheduled a hair ahead of the audio thread, never in its past. (A curve that was
+    // scheduled late sometimes came out as a gain stuck at 0 until the curve's end: the new track's bass and mids missing for
+    // the whole crossfade.)
+    const outEnd = musicEnd(outBuffer);
+    const trimTo = entryTrim(rmsOf(channelsOf(outBuffer), outBuffer.sampleRate, Math.max(0, outEnd - 6), outEnd), rmsOf(channelsOf(next), next.sampleRate, from, from + 6));
+    const source = this.context.createBufferSource();
+    source.buffer = next;
+    const trim = this.context.createGain();
+    trim.gain.value = trimTo;                  // (what comes in: no louder than what is going out, then gliding to its own level)
+    const fader = this.context.createGain();
+    let thin: BiquadFilterNode | null = null;
+    let split: Split | null = null;
+    let curves: { out: Float32Array; in: Float32Array }[] | null = null;
+    if (byBand) {
+      // each band changes hands in its own window, on equal-power curves: the faders stay at 1, the bands do the fading
+      const windows = bandWindows(mode, length);
+      curves = BAND_NAMES.map((name) => bandCurves(windows[name]));
+      split = buildSplit(this.context, true);
+      source.connect(trim).connect(split.input); split.output.connect(fader).connect(this.rack.input);
+    } else {
+      // what goes out fades by its curve, and its deep bass (under ~100 Hz) thins out as it goes: two kick drums and
+      // basslines at once are mud, and above that nothing is touched
+      thin = this.context.createBiquadFilter();
+      thin.type = "highpass"; thin.Q.value = BUTTERWORTH_Q_DB;
+      thin.frequency.value = 10;
+      old.disconnect(); old.connect(thin).connect(oldGain);
+      // (a track that comes in under a classic fade still gets a splitter when a frequency type is chosen: the next crossfade can use it)
+      split = this.wantsBands() ? buildSplit(this.context) : null;
+      if (split) { source.connect(trim).connect(split.input); split.output.connect(fader).connect(this.rack.input); }
+      else source.connect(trim).connect(fader).connect(this.rack.input);
+    }
+    const now = this.context.currentTime + LEAD;
+    if (curves && split && oldSplit) {
+      BAND_NAMES.forEach((name, i) => {
+        oldSplit[name].gain.cancelScheduledValues(now); oldSplit[name].gain.setValueCurveAtTime(curves![i].out, now, length);
+        split![name].gain.setValueCurveAtTime(curves![i].in, now, length);
+      });
+    } else {
+      thin!.frequency.setValueAtTime(10, now);
+      thin!.frequency.exponentialRampToValueAtTime(100, now + length * .9);
+      oldGain.gain.cancelScheduledValues(now);
+      oldGain.gain.setValueCurveAtTime(FADE_OUT, now, length);
+      fader.gain.setValueCurveAtTime(FADE_IN, now, length);
+    }
+    if (trimTo < 1) { trim.gain.setValueAtTime(trimTo, now + length); trim.gain.setTargetAtTime(1, now + length, 2.5); }
+    this.watchEnd(source);
+    source.start(now, from);
+    old.stop(now + length + .05);
+    const timer = window.setTimeout(() => { old.disconnect(); thin?.disconnect(); disposeSplit(oldSplit); oldGain.disconnect(); if (this.outgoing?.source === old) this.outgoing = null; }, (length + .15) * 1000);
+    this.outgoing = { source: old, gain: oldGain, filter: thin, split: oldSplit, timer };
+    this.source = source; this.sourceGain = fader; this.sourceTrim = trim; this.sourceSplit = split;
+    this.buffer = next; this.bufferPath = path; this.preloaded = null;
+    this.position = from; this.lastClock = now;
+    useApp.setState({ position: from, duration: next.duration });
+    return length;
+  }
+  /** `crossfade` seconds before the end of the track, the player is asked for the next one. */
+  private checkNearEnd(): void {
+    const fade = useSettings.getState().crossfade;
+    if (!fade || !this.onNearEnd || !this.buffer || !this.source || !this.musicActive || this.wasPaused || this.handOn || this.ramp || this.speed < .99) return;
+    // counted from where the music ends, not from the end of the file (a silent tail would fade into nothing)
+    const end = musicEnd(this.buffer);
+    const seconds = Math.min(fade, end * .4);                      // a short track never fades for longer than 40 % of itself
+    const left = end - this.position;
+    if (left > seconds) return;
+    const now = performance.now();
+    if (now - this.lastCrossTry < 250) return;
+    this.lastCrossTry = now;
+    this.onNearEnd(Math.max(.2, Math.min(seconds, left)));
   }
   fadeMusic(target: number, seconds: number): void {
     const now = this.context.currentTime;
@@ -411,6 +592,7 @@ class AudioEngine {
     this.lastClock = now;
     if (this.handOn) {
       this.wasHandOn = true;
+      this.dropOutgoing();
       const target = clamp(this.handRate ?? 0, -2, 2);
       if (target < 0) this.handReversed = true;
       this.speed += (target - this.speed) * (1 - Math.exp(-clockDelta / .03));
@@ -440,6 +622,7 @@ class AudioEngine {
     if (this.musicActive && this.buffer) {
       this.position = clamp(this.position + this.speed * clockDelta, 0, this.buffer.duration);
       useApp.setState({ position: this.position });
+      this.checkNearEnd();
     }
     this.wobble += delta;
     for (const voice of this.previewVoices) voice.filter.frequency.setTargetAtTime(

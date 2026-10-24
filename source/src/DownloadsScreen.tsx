@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { crateAlbums, setCrateGenre, useApp } from "./state";
 import { addToAlbum, findLink, say } from "./download";
+import { readLink } from "./link";
 import type { Found } from "./download";
 import { cancel, clearFinished, enqueue, remove, retry, useDownloads } from "./downloads";
 import type { Job } from "./downloads";
@@ -17,6 +18,7 @@ const errorText = (error: unknown) => error instanceof Error ? error.message : S
 export function DownloadSheet({ albumId }: { albumId?: string }) {
   const [link, setLink] = useState("");
   const [found, setFound] = useState<Found | null>(null);
+  const lookup = useRef(0);
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
   const [note, setNote] = useState("");
@@ -33,12 +35,19 @@ export function DownloadSheet({ albumId }: { albumId?: string }) {
     setBusy(true); setError(""); setFound(null);
     // the first time, Turntable fetches its downloader (yt-dlp, ~17 MB) before it can look at the link
     if (isTauri() && !(await invoke<boolean>("ytdlp_ready").catch(() => true))) setNote(t("Getting the downloader (one time, about 17 MB)…"));
-    try { setFound(await findLink(link)); } catch (cause) { setError(say(errorText(cause))); } finally { setBusy(false); setNote(""); }
+    const mine = ++lookup.current;       // the field may be edited while the lookup runs: an answer for old text is dropped
+    try { const result = await findLink(link); if (mine === lookup.current) setFound(result); }
+    catch (cause) { if (mine === lookup.current) setError(say(errorText(cause))); }
+    finally { if (mine === lookup.current) { setBusy(false); setNote(""); } }
   };
   const add = async () => {
     if (!found) return;
     if (albumId && !target) { setError(t("This album is gone.")); return; }
-    if (!target) { enqueue(link.trim(), found); useApp.setState({ download: false, message: t("Added to Downloads") }); return; }
+    if (!target) {
+      const checked = readLink(link);
+      useApp.setState({ download: false, message: t(enqueue(checked.ok ? checked.url : link.trim(), found) ? "Added to Downloads" : "Already in Downloads") });
+      return;
+    }
     setAdding(true); setError("");
     try {
       // pressing the album again replaces its files: what is playing from it stops then, like after editing it (not before the download: it can fail)
@@ -61,7 +70,7 @@ export function DownloadSheet({ albumId }: { albumId?: string }) {
         <button className="icon-btn" aria-label={t("Close")} disabled={adding} onClick={close}><Icon name="x" /></button>
       </header>
       <form className="dl-link" onSubmit={(event) => { event.preventDefault(); if (link.trim() && !busy && !adding) void find(); }}>
-        <input autoFocus value={link} disabled={adding} onChange={(event) => setLink(event.target.value)}
+        <input autoFocus value={link} disabled={adding} aria-invalid={!!error} onChange={(event) => { lookup.current++; setLink(event.target.value); setError(""); setFound(null); setBusy(false); setNote(""); }}
           placeholder={albumId ? t("Paste a link to one SoundCloud track") : t("Paste a soundcloud.com link — track, album or playlist")} spellCheck={false} />
         <button className="pill-btn solid" disabled={!link.trim() || busy || adding}>{busy ? t("Looking…") : t("Find")}</button>
       </form>
@@ -70,7 +79,7 @@ export function DownloadSheet({ albumId }: { albumId?: string }) {
         <div className="dl-preview-text">
           <span className="mono">{found.kind === "set" ? t("Album") : t("Track")} · {count(total, "track")}</span>
           <h3>{found.title}</h3><span className="sub">{found.author}</span>
-          {found.kind === "set" && <ol>{found.tracks.slice(0, 5).map((track, index) => <li key={track.url}>{track.title || `#${index + 1}`}</li>)}
+          {found.kind === "set" && found.tracks.some((track) => track.title) && <ol>{found.tracks.slice(0, 5).map((track, index) => <li key={track.url}>{track.title || `#${index + 1}`}</li>)}
             {total > 5 && <li className="more">+ {total - 5} {t("more")}</li>}</ol>}
         </div>
         <button className="pill-btn solid" disabled={adding || (!!albumId && found.kind !== "track")} onClick={() => void add()}>
@@ -127,8 +136,8 @@ function JobCard({ job }: { job: Job }) {
       </div>
       <div className={"dj-status" + (job.status === "failed" ? " bad" : "")}>{status}</div>
       {live && <div className="dl-bar"><span className={job.status === "queued" ? "wait" : ""} style={{ width: `${job.tracks.length ? Math.round(settled / job.tracks.length * 100) : 0}%` }} /></div>}
-      {lines.length > 0 && <ul className="dj-tracks">{lines.map((track, index) => <li key={index} className={"is-" + track.state}>
-        <i />{track.title || track.url.split("/").pop()}{track.reason ? <em> — {say(track.reason)}</em> : null}</li>)}</ul>}
+      {lines.length > 0 && <ul className="dj-tracks">{lines.map((track) => <li key={track.url} className={"is-" + track.state}>
+        <i />{track.title || `#${job.tracks.indexOf(track) + 1}`}{track.reason ? <em> — {say(track.reason)}</em> : null}</li>)}</ul>}
     </div>
   </article>;
 }

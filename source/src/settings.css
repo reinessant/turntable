@@ -108,6 +108,8 @@
   box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 3px 10px rgba(0,0,0,.25);
 }
 .st-range:disabled { opacity: .35; cursor: default; }
+.st-fade { display: flex; align-items: center; gap: 14px; }
+.st-fade .st-mono { min-width: 34px; text-align: right; }
 
 /* appearance: the live deck, then the swatches */
 .st-look { display: grid; grid-template-columns: 470px 1fr; gap: 36px; align-items: center; padding: 10px 0 22px; }

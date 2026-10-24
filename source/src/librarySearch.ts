@@ -9,9 +9,17 @@ const RU = "ёйцукенгшщзхъфывапролджэячсмитьбю."
 const swap = (text: string, from: string, to: string) => [...text].map((c) => { const i = from.indexOf(c); return i >= 0 ? to[i] : c; }).join("");
 export const norm = (text: string) => text.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/ё/g, "е").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
+/** the same titles are normalised on every keystroke: remembered (a library of 100 000 tracks spent most of the search here) */
+const normalised = new Map<string, string>();
+function cachedNorm(text: string): string {
+  let out = normalised.get(text);
+  if (out === undefined) { if (normalised.size > 400_000) normalised.clear(); out = norm(text); normalised.set(text, out); }
+  return out;
+}
+
 /** 0 (no match) … 1000: how well `query` (already normalised) matches `text`. */
 function score(text: string, query: string): number {
-  const t = norm(text);
+  const t = cachedNorm(text);
   if (!query || !t) return 0;
   if (t === query) return 1000;
   if (t.startsWith(query)) return 800 - Math.min(200, t.length - query.length);

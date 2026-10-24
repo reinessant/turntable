@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { asset } from "./library";
 import { coverSrc, Icon } from "./PlayerScreen";
 import { matchRange, searchLibrary } from "./librarySearch";
@@ -26,7 +26,8 @@ export function Search({ onPlay, onShow }: { onPlay: (album: Album, index: numbe
   const [cursor, setCursor] = useState(0);
   const [closing, setClosing] = useState(false);
   const list = useRef<HTMLDivElement>(null);
-  const results = useMemo(() => searchLibrary(albums, query), [albums, query]);
+  const searched = useDeferredValue(query);          // typing stays instant on a huge library; the list follows a moment later
+  const results = useMemo(() => searchLibrary(albums, searched), [albums, searched]);
   // with nothing typed: the newest albums
   const recent = useMemo<Hit[]>(() => [...albums].sort((a, b) => b.addedAt - a.addedAt).slice(0, 6).map((album) => ({ kind: "album", album, score: 0 })), [albums]);
   const groups: { title: string; hits: Hit[] }[] = query.trim()
@@ -37,7 +38,7 @@ export function Search({ onPlay, onShow }: { onPlay: (album: Album, index: numbe
   useEffect(() => { list.current?.querySelector<HTMLElement>(".sr-hit.on")?.scrollIntoView({ block: "nearest" }); }, [cursor]);
   const close = () => { setClosing(true); setTimeout(() => useApp.setState({ search: false }), 140); };
   const act = (hit: Hit | undefined, show = false) => {
-    if (!hit) return;
+    if (!hit || searched !== query) return;            // the list still shows the answer for the text before this key
     if (hit.kind === "artist") {
       // an artist: narrow to their records; with one record, go straight to it
       if (hit.albums.length > 1 && !show) { setQuery(hit.artist); return; }

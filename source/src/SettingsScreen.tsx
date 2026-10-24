@@ -6,9 +6,11 @@ import { useApp } from "./state";
 import { MiniPlayer } from "./MiniPlayer";
 import { TrayMenu } from "./TrayMenu";
 import {
-  DEFAULT_HOTKEYS, FINISHES, HOTKEY_ACTIONS, LCDS, SHELLS, TAPES, TRAY_ACCENTS, TRAY_THEMES, VINYLS, acceleratorOf, applyHotkeys, keyLabel, suspendHotkeys, updateSettings, useSettings, vinylOf
+  CROSSFADE, DEFAULT_HOTKEYS, FINISHES, HOTKEY_ACTIONS, LCDS, SHELLS, TAPES, TRAY_ACCENTS, TRAY_THEMES, VINYLS, acceleratorOf, applyHotkeys, keyLabel, suspendHotkeys, updateSettings, useSettings, vinylOf
 } from "./settings";
 import type { HotkeyAction, Settings } from "./settings";
+import { CROSSFADE_MODES } from "./crossfadeMath";
+import type { CrossfadeMode } from "./crossfadeMath";
 import { t, useLang } from "./lang";
 import { MINI_SCALE, setMiniScale } from "./mini";
 import type { LangChoice } from "./lang";
@@ -104,6 +106,12 @@ function HotkeyRow({ action, name }: { action: HotkeyAction; name: string }) {
 }
 
 const SECTIONS = [{ id: "look", name: "Appearance" }, { id: "mini", name: "Mini player" }, { id: "tray", name: "Tray menu" }, { id: "play", name: "Playback" }, { id: "keys", name: "Keys" }, { id: "system", name: "System" }, { id: "about", name: "About" }];
+const MODE_NAME: Record<CrossfadeMode, string> = { classic: "Classic", bass: "Bass swap", spectrum: "By frequency" };
+const MODE_HINT: Record<CrossfadeMode, string> = {
+  classic: "Both tracks fade at the same time",
+  bass: "Only the bass changes hands, in one short moment, so two kick drums and basslines never play together; the rest fades as usual",
+  spectrum: "The tracks hand over band by band: the highs first, then the middle, the bass last, so they stay out of each other's way"
+};
 const LANGUAGES: { id: LangChoice; name: string }[] = [{ id: "auto", name: "Auto" }, { id: "en", name: "English" }, { id: "ru", name: "Русский" }];
 
 export function SettingsScreen() {
@@ -161,6 +169,9 @@ export function SettingsScreen() {
         <Row title={t("Glints with the beat")} hint={t("The dust catches the light on every kick")} disabled={!s.particles}>
           <Toggle label={t("Glints with the beat")} on={s.particlesReact} disabled={!s.particles} onChange={(particlesReact) => void updateSettings({ particlesReact })} />
         </Row>
+        <Row title={t("Fade when idle")} hint={t("While music plays and the mouse rests, everything but the record player becomes translucent")}>
+          <Toggle label={t("Fade when idle")} on={s.idleFade} onChange={(idleFade) => void updateSettings({ idleFade })} />
+        </Row>
         <Row title={t("Launch animation")} hint={t("The record and the wave of light when Turntable opens")}>
           <Toggle label={t("Launch animation")} on={s.intro} onChange={(intro) => void updateSettings({ intro })} />
         </Row>
@@ -200,6 +211,26 @@ export function SettingsScreen() {
         <h3>{t("Playback")}</h3>
         <Row title={t("Previews in the crate")} hint={t("A few seconds of the album play while you flip to it")}>
           <Toggle label={t("Previews in the crate")} on={s.previews} onChange={(previews) => void updateSettings({ previews })} />
+        </Row>
+        <Row title={t("Crossfade")} hint={t("The end of a track fades into the start of the next one instead of a pause. It works inside a record; off, the needle moves on as usual")}>
+          <div className="st-fade">
+            <input className="st-range" type="range" min={CROSSFADE.min} max={CROSSFADE.max} step={CROSSFADE.step} value={s.crossfade} aria-label={t("Crossfade")}
+              aria-valuetext={s.crossfade ? `${s.crossfade} ${t("s")}` : t("Off")} style={{ "--p": (s.crossfade - CROSSFADE.min) / (CROSSFADE.max - CROSSFADE.min) } as React.CSSProperties}
+              onChange={(event) => useSettings.setState({ crossfade: Number(event.target.value) })}
+              onPointerUp={(event) => void updateSettings({ crossfade: Number((event.target as HTMLInputElement).value) })}
+              onKeyUp={(event) => void updateSettings({ crossfade: Number((event.target as HTMLInputElement).value) })} />
+            <span className="st-mono">{s.crossfade ? `${s.crossfade} ${t("s")}` : t("Off")}</span>
+          </div>
+        </Row>
+        <Row title={t("Crossfade type")} hint={t(MODE_HINT[s.crossfadeMode])} disabled={!s.crossfade}>
+          <div className="st-seg" style={{ margin: 0 }} role="group" aria-label={t("Crossfade type")}>{CROSSFADE_MODES.map((mode) =>
+            <button key={mode} disabled={!s.crossfade} className={s.crossfadeMode === mode ? "on" : ""} aria-pressed={s.crossfadeMode === mode} onClick={() => void updateSettings({ crossfadeMode: mode })}>{t(MODE_NAME[mode])}</button>)}</div>
+        </Row>
+        <Row title={t("Crossfade inside albums")} hint={t("Off: the tracks of an album play gapless, as the artist made them. Playlists and shuffle still crossfade")} disabled={!s.crossfade}>
+          <Toggle label={t("Crossfade inside albums")} on={s.crossfadeAlbums} disabled={!s.crossfade} onChange={(crossfadeAlbums) => void updateSettings({ crossfadeAlbums })} />
+        </Row>
+        <Row title={t("Crossfade animation")} hint={t("A spiral of light threads through the deck while one track hands over to the next")} disabled={!s.crossfade}>
+          <Toggle label={t("Crossfade animation")} on={s.crossfadeAnimation} disabled={!s.crossfade} onChange={(crossfadeAnimation) => void updateSettings({ crossfadeAnimation })} />
         </Row>
         <Row title={t("Vinyl hiss")} hint={t("The needle's surface noise under the music. It follows the volume; switch it off for a perfectly clean sound")}>
           <Toggle label={t("Vinyl hiss")} on={s.surfaceNoise} onChange={(surfaceNoise) => void updateSettings({ surfaceNoise })} />

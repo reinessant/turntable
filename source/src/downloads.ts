@@ -58,15 +58,17 @@ export function seedDemoDownloads(): void {
   ] });
 }
 
-/** Puts a found link on the queue. */
-export function enqueue(link: string, found: Found): string {
+/** Puts a found link on the queue; false when the same link is already waiting or downloading (pressed twice, two records). */
+export function enqueue(link: string, found: Found): boolean {
+  const same = (a: string, b: string) => a.replace(/\/+$/, "").toLowerCase() === b.replace(/\/+$/, "").toLowerCase();
+  if (useDownloads.getState().jobs.some((item) => (item.status === "queued" || item.status === "running") && same(item.link, link))) return false;
   const job: Job = {
     id: crypto.randomUUID(), link, kind: found.kind, title: found.title, author: found.author, cover: found.cover, year: found.year, info: found.info,
     tracks: found.tracks.map((track) => ({ url: track.url, title: track.title, state: "wait" as const })), status: "queued", addedAt: Date.now()
   };
   useDownloads.setState((state) => ({ jobs: [job, ...state.jobs] }));
   void pump();
-  return job.id;
+  return true;
 }
 
 export function retry(id: string): void {
@@ -115,7 +117,7 @@ async function runJob(job: Job): Promise<void> {
   try {
     const { album, skipped } = await downloadTracks(found, {
       start: (index) => patchTrack(job.id, index, { state: "run", reason: undefined }),
-      finish: (index, state, reason) => patchTrack(job.id, index, { state, reason }),
+      finish: (index, state, reason, title) => patchTrack(job.id, index, title ? { state, reason, title } : { state, reason }),
       retry: (index, reason) => patchTrack(job.id, index, { state: "wait", reason }),
       pause: (until) => patch(job.id, (item) => ({ ...item, pausedUntil: until })),
       cancelled: () => cancelled.has(job.id)

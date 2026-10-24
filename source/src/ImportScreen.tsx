@@ -9,6 +9,7 @@ import { asset } from "./library";
 import { useApp } from "./state";
 import { Icon } from "./PlayerScreen";
 import { GenrePicker } from "./GenrePicker";
+import { useRowDrag } from "./rowDrag";
 import { count, t } from "./lang";
 import type { Album, DraftTrack } from "./types";
 
@@ -36,7 +37,6 @@ export function ImportScreen({ album, initialPaths, onClose }: Props) {
   const [pasteText, setPasteText] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
   const artistRef = useRef<HTMLInputElement>(null);
-  const dragRef = useRef<{ index: number; y: number } | null>(null);
   const ingest = useCallback(async (paths: string[], coverOnly = false) => {
     try {
       const expanded = await expandPaths(paths);
@@ -156,20 +156,11 @@ export function ImportScreen({ album, initialPaths, onClose }: Props) {
     try { await deleteAlbum(album.id); onClose(undefined, true); }
     catch (cause) { setError(cause instanceof Error ? cause.message : t("Could not delete album")); }
   }
-  const onDragMove = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!dragRef.current) return;
-    const change = Math.round((event.clientY - dragRef.current.y) / 44);
-    if (!change) return;
-    setTracks((current) => {
-      const from = dragRef.current!.index;
-      const to = Math.min(current.length - 1, Math.max(0, from + change));
-      if (from === to) return current;
-      const next = [...current];
-      next.splice(to, 0, next.splice(from, 1)[0]);
-      dragRef.current = { index: to, y: event.clientY };
-      return next;
-    });
-  };
+  const startDrag = useRowDrag(() => tracks.length, (from, to) => setTracks((current) => {
+    const next = [...current];
+    next.splice(to, 0, next.splice(from, 1)[0]);
+    return next;
+  }));
   return <div className="screen import-view">
     <header className="header">
       <button className="pill-btn" onClick={() => saving ? void cancelImport() : onClose()}><Icon name="x" size={14} />{t("Cancel")}</button>
@@ -211,8 +202,7 @@ export function ImportScreen({ album, initialPaths, onClose }: Props) {
         <div className="rows">
           {tracks.map((track, index) => <div className="row" key={track.id}>
             <button className="drag" aria-label={t("Move track") + " " + (index + 1)}
-              onPointerDown={(event) => { dragRef.current = { index, y: event.clientY }; event.currentTarget.setPointerCapture(event.pointerId); }}
-              onPointerMove={onDragMove} onPointerUp={() => { dragRef.current = null; }}><Icon name="dots-six-vertical" size={16} /></button>
+              onPointerDown={(event) => startDrag(event, index)}><Icon name="dots-six-vertical" size={16} /></button>
             <span className="mono">{String(index + 1).padStart(2, "0")}</span>
             <span className="track-cell"><input className="t" value={track.title} onChange={(event) => setTracks((current) => current.map((item) => item.id === track.id ? { ...item, title: event.target.value } : item))}
               onKeyDown={(event) => { if (event.key === "Enter") (event.currentTarget.closest(".row")?.nextElementSibling?.querySelector("input.t") as HTMLInputElement | null)?.focus(); }} />

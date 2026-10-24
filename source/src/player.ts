@@ -3,7 +3,7 @@ import { fetchLyrics } from "./api";
 import { parseLrc } from "./lyrics";
 import { readLyrics } from "./library";
 import { activeAlbum, useApp } from "./state";
-import { updateSettings } from "./settings";
+import { settings, updateSettings } from "./settings";
 import { t } from "./lang";
 import type { Album, RepeatMode, ShuffleMode, Track, TransportPhase } from "./types";
 
@@ -72,7 +72,9 @@ function peekShuffled(): Slot | null {
   return bag[0];
 }
 function preloadNext(album: Album, index: number): void {
-  const slot = state().shuffle === "off" ? { albumId: album.id, index: index + 1 } : peekShuffled();
+  // after the last track, repeat-all goes back to the first: that one is made ready too
+  const after = index + 1 < album.tracks.length ? index + 1 : state().repeat === "all" ? 0 : -1;
+  const slot = state().shuffle === "off" ? (after >= 0 ? { albumId: album.id, index: after } : null) : peekShuffled();
   const track = slot && state().albums.find((item) => item.id === slot.albumId)?.tracks[slot.index];
   if (track) void audio.preload(track.filePath);
 }
@@ -117,11 +119,7 @@ export function setRepeat(mode: RepeatMode): void {
   void updateSettings({ repeat: mode });
 }
 export const cycleRepeat = () => setRepeat(({ off: "all", all: "one", one: "off" } as const)[state().repeat]);
-export function albumProgress(album: Album, index: number, position: number): number {
-  const total = album.tracks.reduce((sum, track) => sum + Math.max(track.duration, 1), 0);
-  const before = album.tracks.slice(0, index).reduce((sum, track) => sum + Math.max(track.duration, 1), 0);
-  return Math.min(1, (before + position) / total);
-}
+export { albumProgress, albumTimes } from "./bulk";
 async function lyricsFor(track: Track, album: Album, id: number): Promise<void> {
   useApp.setState({ lyrics: { mode: "loading", lines: [], plain: "" } });
   // an answer may come back after the next track has started: it must not land on that one
@@ -320,6 +318,41 @@ export function nextTrack(): void {
   else if (state().repeat === "all") void cueTrack(0);
   else void stopAlbum();
 }
+/** Crossfade: shortly before the end of a track the next one of the same record starts under it, with no arm travel in
+    between. Anything else (repeat one, another record in shuffle-all, the last track, the next one not decoded yet)
+    is left to the ordinary way. True when the next track has begun. */
+function crossfadeNext(seconds: number): boolean {
+  const s = state(), album = activeAlbum();
+  if (!album || leaving || s.phase !== "PLAYING" || s.cueLifted || s.transitionBusy || s.repeat === "one") return false;
+  // a record that is meant to be heard as it was made plays gapless, if the setting says so (in a shuffled order there is no "as made")
+  if (album.kind !== "playlist" && s.shuffle === "off" && !settings().crossfadeAlbums) return false;
+  let slot: Slot | null;
+  if (s.shuffle !== "off") slot = peekShuffled();
+  else {
+    const next = s.trackIndex + 1;
+    slot = next < album.tracks.length ? { albumId: album.id, index: next } : s.repeat === "all" && album.tracks.length > 1 ? { albumId: album.id, index: 0 } : null;
+  }
+  if (!slot || slot.albumId !== album.id) return false;
+  const track = album.tracks[slot.index];
+  const length = track ? audio.crossfadeTo(track.filePath, seconds) : 0;
+  if (!track || !length) return false;
+  if (s.shuffle !== "off") {
+    const here = hereSlot();
+    bag = bag.filter((item) => !sameSlot(item, slot));
+    if (here) { history.push(here); if (history.length > 300) history.shift(); }
+  }
+  const id = ++generation;
+  pendingIndex = null;
+  // the position and the length come from the audio; `fade` is what the spiral draws
+  const fade = { from: s.trackIndex, to: slot.index, start: performance.now(), length, fromPos: s.position, fromDur: s.duration, lyrics: s.lyrics };
+  useApp.setState({ trackIndex: slot.index, message: "", fade });
+  // the animation clears it when it is done; with the animation off (or another screen open) nothing would, and a stale fade would stay
+  window.setTimeout(() => { if (useApp.getState().fade === fade) useApp.setState({ fade: null }); }, (length + 3) * 1000);
+  void lyricsFor(track, album, id);
+  preloadNext(album, slot.index);
+  return true;
+}
+audio.onNearEnd = crossfadeNext;
 /** A track that ran to its end: repeat-one plays it again at once (no arm travel), otherwise on to the next. */
 audio.onEnded = () => {
   if (leaving) return;

@@ -43,6 +43,7 @@ export function CrateScreen({ onImport, onNewPlaylist, onEditPlaylist, onSelect 
   const previews = useApp((state) => state.previewsEnabled);
   const previewTrack = useApp((state) => state.previewTrack);
   const album = albums[focused];
+  const windowed = albums.length > 150, from = windowed ? Math.max(0, focused - 6) : 0, to = windowed ? Math.min(albums.length, focused + 20) : albums.length;
   const stack = useRef<HTMLDivElement>(null);
   const motion = useRef({ pos: focused, target: focused, velocity: 0 });
   const wheel = useRef(0);
@@ -65,8 +66,8 @@ export function CrateScreen({ onImport, onNewPlaylist, onEditPlaylist, onSelect 
       const t = now / 1000;
       drift += ((useApp.getState().transitionBusy ? 0 : 1) - drift) * Math.min(1, dt * 3);
       const bob = Math.sin(t * 1.05) * 5 * drift, sway = Math.sin(t * .72 + .8) * .45 * drift;
-      stack.current?.querySelectorAll<HTMLElement>(".sleeve").forEach((element, index) => {
-        const d = index - m.pos;
+      stack.current?.querySelectorAll<HTMLElement>(".sleeve").forEach((element) => {
+        const index = Number(element.dataset.i), d = index - m.pos;
         let y: number, scale: number, scaleY: number, dim: number, opacity: number, z: number;
         if (d >= 0) {
           const k = Math.min(d, 8);
@@ -87,7 +88,7 @@ export function CrateScreen({ onImport, onNewPlaylist, onEditPlaylist, onSelect 
         if (shade) shade.style.opacity = String(dim);
       });
       const peek = stack.current?.querySelector<HTMLElement>(".peek");
-      const front = stack.current?.querySelectorAll<HTMLElement>(".sleeve")[focused];
+      const front = stack.current?.querySelector<HTMLElement>(`.sleeve[data-i="${focused}"]`);
       if (peek && front) peek.style.zIndex = String((Number(front.style.zIndex) || 1000) - 1);
       // the record rides with its sleeve
       if (peek) peek.style.marginTop = (bob * Math.max(0, 1 - Math.abs(focused - m.pos))).toFixed(2) + "px";
@@ -133,7 +134,8 @@ export function CrateScreen({ onImport, onNewPlaylist, onEditPlaylist, onSelect 
         <div className="peek" style={{ opacity: peekOut ? 1 : 0, transform: peekOut ? "translateX(150px)" : "translateX(0)" }}>
           <div className="v"><div className="peek-vinyl" /><LabelCanvas className="lbl" src={coverSrc(album)} size={146} /></div><div className="sh" />
         </div>
-        {albums.map((item, index) => <div key={item.id} className="sleeve" data-i={index}>
+        {/* a big library draws the sleeves around the one in front only: the rest would be thousands of covers and frame-by-frame work for nothing */}
+        {albums.slice(from, to).map((item, k) => <div key={item.id} className="sleeve" data-i={from + k} style={windowed ? { display: "none" } : undefined}>
           <div className="face"><img src={coverSrc(item)} alt={item.title} /></div><div className="top" /><div className="dim" />
         </div>)}
       </div>

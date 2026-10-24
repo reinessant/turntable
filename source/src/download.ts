@@ -4,6 +4,7 @@
    screen live in downloads.ts / DownloadsScreen.tsx. */
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { SITE_PREFIX, explain, readLink } from "./link";
 import { neutralProfile, prepareCover } from "./color";
 import { credit, trustSplits } from "./credit";
 import { runPool } from "./pool";
@@ -13,7 +14,8 @@ import { useApp } from "./state";
 import { t } from "./lang";
 import type { Album, DraftTrack } from "./types";
 
-const SOUNDCLOUD = /^https:\/\/(www\.|m\.|on\.)?soundcloud\.com\//i;
+/** SoundCloud itself keeps a set to 500 tracks; a bigger list (an artist's whole page) is more than one record can sensibly hold */
+export const MAX_TRACKS = 500;
 /** tracks of one set fetched at the same time: looking a track up takes about as long as the file itself */
 const PARALLEL = 4;
 /** SoundCloud answers 403/429 when it is asked for too much too fast (a long playlist does that): the downloader
@@ -29,7 +31,8 @@ export interface Found {
 export type TrackState = "wait" | "run" | "done" | "fail";
 export interface TrackHooks {
   start(index: number): void;
-  finish(index: number, state: "done" | "fail", reason?: string): void;
+  /** `title`: the track's real name, when SoundCloud's list gave only a number */
+  finish(index: number, state: "done" | "fail", reason?: string, title?: string): void;
   /** the track goes back to the line (SoundCloud asked to slow down) */
   retry(index: number, reason: string): void;
   /** nothing is asked of SoundCloud until this moment (ms since epoch) */
@@ -46,6 +49,7 @@ export class ServiceError extends Error {}
 
 /** An error message for the screen: errors that end in a detail ("…: <system text>") are translated by their start. */
 export function say(message: string): string {
+  if (message.startsWith(SITE_PREFIX)) return t(SITE_PREFIX) + message.slice(SITE_PREFIX.length);
   const head = ["Could not start the downloader", "Could not get the downloader"].find((start) => message.startsWith(start));
   return t(head ?? message);
 }
@@ -56,7 +60,7 @@ async function run<T>(command: string, args: Record<string, unknown>): Promise<{
   catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     // a long playlist can make SoundCloud turn the lookup away: say so, instead of printing the raw HTTP error
-    throw new ServiceError(command === "ytdlp_info" && RATE_LIMIT.test(message) ? "SoundCloud is limiting requests right now. Try again in a minute." : message);
+    throw new ServiceError(command === "ytdlp_info" && RATE_LIMIT.test(message) ? "SoundCloud is limiting requests right now. Try again in a minute." : RATE_LIMIT.test(message) ? message : explain(message));
   }
 }
 
@@ -67,16 +71,18 @@ function artwork(info: { thumbnail?: string; thumbnails?: Thumb[] }): string {
 }
 
 export async function findLink(link: string): Promise<Found> {
-  const url = link.trim();
-  if (!SOUNDCLOUD.test(url)) throw new ServiceError("That isn't a soundcloud.com link");
+  const checked = readLink(link);
+  if (!checked.ok) throw new ServiceError(checked.error);
+  const url = checked.url;
   // dev in a plain browser (no Tauri): a staged answer (the promo videos set `__found`), or a sample set so the screen can be laid out
-  if (import.meta.env.DEV && !isTauri()) { const staged = (globalThis as { __found?: Record<string, Found> }).__found?.[url]; if (staged) return staged; }
+  if (import.meta.env.DEV && !isTauri()) { const staged = (globalThis as { __found?: Record<string, Found> }).__found; const hit = staged?.[link.trim()] ?? staged?.[url]; if (hit) return hit; }
   if (import.meta.env.DEV && !isTauri() && !url.includes("/sets/")) return { kind: "track", title: "bologna 2", author: "boolymon", cover: "", tracks: [{ url, title: "bologna 2", author: "boolymon" }] };
   if (import.meta.env.DEV && !isTauri()) return { kind: "set", title: "Avant Nova", author: "slayr", cover: "", tracks: ["promise", "Whats Happening", "yes, you may", "Money Hungry", "24/7", "On my way!", "Love Blur"].map((title) => ({ url: url + "/" + title, title, author: "slayr" })) };
   const { value: info, raw } = await run<Info>("ytdlp_info", { url });
-  const entries = (info.entries ?? []).filter((entry) => entry.url || entry.webpage_url);
+  const entries = (info.entries ?? []).filter((entry) => entry && (entry.url || entry.webpage_url));
   if (info._type === "playlist") {
     if (!entries.length) throw new ServiceError("Nothing to download at this link.");
+    if (entries.length > MAX_TRACKS) throw new ServiceError("That is a very long list. Turntable takes up to 500 tracks at a time: paste a link to a smaller album or playlist.");
     return {
       kind: "set", title: info.title || "SoundCloud", author: info.uploader || "SoundCloud", cover: artwork(info), year: info.release_year,
       tracks: entries.map((entry) => ({ url: (entry.url || entry.webpage_url)!, title: entry.title || "", author: entry.uploader || info.uploader || "" }))
@@ -116,7 +122,7 @@ export async function downloadTracks(found: Found, hooks: TrackHooks): Promise<{
   try {
     await runPool({
       count: found.tracks.length, parallel: PARALLEL, isRate: (message) => RATE_LIMIT.test(message), cancelled: () => hooks.cancelled(),
-      start: (index) => hooks.start(index), done: (index) => hooks.finish(index, "done"), pause: (until) => hooks.pause(until),
+      start: (index) => hooks.start(index), done: (index) => hooks.finish(index, "done", undefined, results[index]?.draft.title), pause: (until) => hooks.pause(until),
       retry: (index) => hooks.retry(index, "SoundCloud asked to slow down"),
       fail: (index, message, refused) => { reason ||= message; hooks.finish(index, "fail", refused ? "SoundCloud kept refusing this track" : message); },
       work: async (index) => { results[index] = await fetchGot(found, index, batch); }

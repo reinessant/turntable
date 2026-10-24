@@ -12,6 +12,7 @@ import { coverSrc } from "./PlayerScreen";
 import { crateAlbums, useApp } from "./state";
 import { withGenre } from "./genres";
 import { t, useLang } from "./lang";
+import { trackLookup } from "./bulk";
 import type { Album, ColorProfile, Playlist, PlaylistFile, Track } from "./types";
 
 const LOCAL_KEY = "turntable.playlists";
@@ -82,15 +83,17 @@ export async function removePlaylist(id: string): Promise<void> {
 }
 
 export function resolvePlaylist(playlist: Playlist, albums: Album[]): Album {
-  const byId = new Map(albums.map((album) => [album.id, album]));
+  const find = trackLookup(albums);
+  const ownFiles = new Map<string, PlaylistFile>();
+  for (const file of playlist.files ?? []) if (!ownFiles.has(file.id)) ownFiles.set(file.id, file);
   const tracks: Track[] = [];
   for (const ref of playlist.refs) {
     if (ref.albumId === playlist.id) {                       // a file of the playlist's own
-      const file = playlist.files?.find((item) => item.id === ref.trackId);
+      const file = ownFiles.get(ref.trackId);
       if (file) tracks.push({ id: file.id, albumId: playlist.id, index: tracks.length + 1, title: file.title, duration: file.duration, filePath: file.filePath, artist: file.artist || undefined, albumTitle: playlist.title, sourceAlbumId: playlist.id });
       continue;
     }
-    const source = byId.get(ref.albumId), track = source?.tracks.find((item) => item.id === ref.trackId);
+    const hit = find(ref.albumId, ref.trackId), source = hit?.album, track = hit?.track;
     // a track of a mixed record keeps its own artist; the others take the record's
     if (source && track) tracks.push({ ...track, albumId: playlist.id, index: tracks.length + 1, artist: track.artist ?? source.artist, albumTitle: source.title, sourceAlbumId: source.id });
   }

@@ -39,7 +39,11 @@ export async function runPool(o: PoolOptions): Promise<void> {
   const firstPause = o.firstPause ?? 20_000, longestPause = o.longestPause ?? 300_000, maxTries = o.maxTries ?? 4, calm = o.calm ?? 8;
   const giveUpAfter = o.giveUpAfter ?? 7;
   const tick = Math.max(5, Math.min(500, minGap));
-  const queue = Array.from({ length: o.count }, (_, index) => index);
+  // the line: tracks not yet tried (a counter: shift() on a long array copies it every time), then the ones handed back
+  let fresh = 0;
+  const again: number[] = [];
+  const waiting = () => o.count - fresh + again.length;
+  const take = () => fresh < o.count ? fresh++ : again.shift()!;
   const tries = new Array<number>(o.count).fill(0);
   let inflight = 0, limit = parallel, gap = minGap, pausedUntil = 0, lastStart = 0, streak = 0, refusedRun = 0, gaveUp = false;
   const worker = async (slot: number) => {
@@ -47,15 +51,15 @@ export async function runPool(o: PoolOptions): Promise<void> {
       if (o.cancelled()) return;
       if (gaveUp) {
         // nothing gets through: what is still in the line is given up (once, by whoever sees it first)
-        while (queue.length) o.fail(queue.shift()!, "SoundCloud kept refusing", true);
+        while (waiting()) o.fail(take(), "SoundCloud kept refusing", true);
         if (inflight === 0) return;
         await sleep(tick); continue;
       }
-      if (!queue.length) { if (inflight === 0) return; await sleep(tick); continue; }          // others may still hand a track back
+      if (!waiting()) { if (inflight === 0) return; await sleep(tick); continue; }          // others may still hand a track back
       if (slot >= limit || Date.now() < pausedUntil) { await sleep(tick); continue; }
       const wait = lastStart + gap - Date.now();
       if (wait > 0) { await sleep(Math.min(wait, tick)); continue; }                             // a steady pace, never a burst
-      const index = queue.shift()!;
+      const index = take();
       lastStart = Date.now(); inflight++;
       o.start(index);
       try {
@@ -74,7 +78,7 @@ export async function runPool(o: PoolOptions): Promise<void> {
         o.pause(pausedUntil);
         if (++tries[index] >= maxTries) { o.fail(index, message, true); continue; }
         o.retry(index);
-        queue.push(index);                                  // the others go first: one bad track must not hold the line
+        again.push(index);                                  // the others go first: one bad track must not hold the line
       } finally { inflight--; }
     }
   };

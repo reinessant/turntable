@@ -6,6 +6,8 @@ import { load } from "@tauri-apps/plugin-store";
 import { create } from "zustand";
 import { useApp } from "./state";
 import type { RepeatMode, ShuffleMode } from "./types";
+import { CROSSFADE_MODES } from "./crossfadeMath";
+import type { CrossfadeMode } from "./crossfadeMath";
 
 export type Finish = "graphite" | "piano" | "alu" | "ivory" | "walnut" | "oxblood" | "navy" | "sage" | "rose";
 export type Vinyl = "black" | "smoke" | "oxblood" | "cobalt" | "emerald" | "amber" | "bone";
@@ -72,11 +74,21 @@ export interface Settings {
   /** the dust glints with the beat */
   particlesReact: boolean;
   intro: boolean;
+  /** while music plays and nothing is touched, the interface (all but the record player) becomes translucent */
+  idleFade: boolean;
   previews: boolean;
   /** the vinyl surface hiss under the music (it follows the volume) */
   surfaceNoise: boolean;
   /** decode every file with Turntable's own decoder instead of the webview's (the fix when a file sounds wrong) */
   nativeDecoder: boolean;
+  /** seconds the end of a track overlaps the start of the next one (0 = off, the needle simply moves on) */
+  crossfade: number;
+  /** false: the tracks of a record play gapless (the way the artist made them); only playlists and shuffle cross-fade */
+  crossfadeAlbums: boolean;
+  /** how the tracks hand over: all at once (classic), the bass changes hands in one moment, or band by band (highs first, bass last) */
+  crossfadeMode: CrossfadeMode;
+  /** a spiral of light threads through the deck while a crossfade runs */
+  crossfadeAnimation: boolean;
   /** shuffle and repeat are remembered between launches */
   shuffle: ShuffleMode;
   repeat: RepeatMode;
@@ -92,9 +104,10 @@ export const DEFAULT_HOTKEYS: Record<HotkeyAction, string> = {
   "play-pause": "", next: "Control+Alt+ArrowRight", prev: "Control+Alt+ArrowLeft",
   "vol-up": "Control+Alt+ArrowUp", "vol-down": "Control+Alt+ArrowDown", "mini-toggle": "", "window-toggle": ""
 };
+export const CROSSFADE = { min: 0, max: 12, step: 1 };
 export const DEFAULTS: Settings = {
-  finish: "graphite", vinyl: "black", miniScale: 1, miniShell: "black", miniLcd: "amber", miniTape: "smoke", trayTheme: "dark", trayAccent: "ink", particles: true, particleAmount: .5, particlesReact: true, intro: true, previews: true,
-  surfaceNoise: true, nativeDecoder: false, shuffle: "off", repeat: "off",
+  finish: "graphite", vinyl: "black", miniScale: 1, miniShell: "black", miniLcd: "amber", miniTape: "smoke", trayTheme: "dark", trayAccent: "ink", particles: true, particleAmount: .5, particlesReact: true, intro: true, idleFade: true, previews: true,
+  surfaceNoise: true, nativeDecoder: false, crossfade: 0, crossfadeAlbums: true, crossfadeMode: "spectrum", crossfadeAnimation: true, shuffle: "off", repeat: "off",
   mediaKeys: true, hotkeys: DEFAULT_HOTKEYS, closeToTray: false, autostart: false, startHidden: false, welcomed: false
 };
 
@@ -105,9 +118,16 @@ export function quickSettings(): Settings { return quick(); }
 function quick(): Settings {
   try {
     const saved = JSON.parse(localStorage.getItem(QUICK) || "null");
-    if (saved) return { ...DEFAULTS, ...saved, hotkeys: { ...DEFAULT_HOTKEYS, ...saved.hotkeys } };
+    if (saved) return clean({ ...DEFAULTS, ...saved, hotkeys: { ...DEFAULT_HOTKEYS, ...saved.hotkeys } });
   } catch { /* no storage: defaults */ }
   return DEFAULTS;
+}
+
+/** a value that came from a file must still make sense */
+function clean(value: Settings): Settings {
+  const fade = Number(value.crossfade);
+  return { ...value, crossfade: Number.isFinite(fade) ? Math.min(CROSSFADE.max, Math.max(CROSSFADE.min, Math.round(fade))) : 0,
+    crossfadeMode: CROSSFADE_MODES.includes(value.crossfadeMode) ? value.crossfadeMode : "spectrum" };
 }
 
 interface SettingsState extends Settings {
@@ -128,7 +148,7 @@ export async function loadSettings(): Promise<void> {
     try {
       const s = await store();
       const saved = (await s.get<Partial<Settings>>("settings")) ?? {};
-      next = { ...DEFAULTS, ...saved, hotkeys: { ...DEFAULT_HOTKEYS, ...saved.hotkeys } };
+      next = clean({ ...DEFAULTS, ...saved, hotkeys: { ...DEFAULT_HOTKEYS, ...saved.hotkeys } });
       // the crate-preview switch predates this screen and kept its own key
       const previews = await s.get<boolean>("previewsEnabled");
       if (previews !== undefined && saved.previews === undefined) next.previews = previews;

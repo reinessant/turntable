@@ -2,6 +2,9 @@ import { create } from "zustand";
 import { hasGenre } from "./genres";
 import type { Album, LyricsState, Playlist, RepeatMode, Screen, ShuffleMode, TransportPhase } from "./types";
 export type Section = "albums" | "downloads" | "stats" | "plugins" | "settings";
+/** a crossfade in progress: the track indexes, when it began (performance.now(), ms), how long it lasts (s) and where the
+    track going out was (its position and length), so the bar and the clock can run on from it into the new one */
+export interface Fade { from: number; to: number; start: number; length: number; fromPos: number; fromDur: number; lyrics: LyricsState }
 interface AppState {
   /** top tab: the record player (crate/player screens) or the plugin rack */
   section: Section;
@@ -25,6 +28,8 @@ interface AppState {
   repeat: RepeatMode;
   previewTrack: { albumId: string; title: string } | null;
   cueLifted: boolean;
+  /** a crossfade in progress (track indexes, when it began in performance.now() ms, how long it lasts in seconds): the spiral draws it */
+  fade: Fade | null;
   lyrics: LyricsState;
   message: string;
   transition: number;
@@ -45,7 +50,7 @@ interface AppState {
 export const useApp = create<AppState>(() => ({
   section: "albums", screen: "crate", albums: [], playlists: [], genre: null, focused: 0, activeAlbumId: null,
   trackIndex: 0, phase: "STOPPED", playing: false, position: 0,
-  duration: 0, volume: 0.78, previewsEnabled: true, shuffle: "off", repeat: "off", previewTrack: null, cueLifted: false,
+  duration: 0, volume: 0.78, previewsEnabled: true, shuffle: "off", repeat: "off", previewTrack: null, cueLifted: false, fade: null,
   lyrics: { mode: "none", lines: [], plain: "" },
   message: "", transition: 0, transitionBusy: false, debug: false, fps: 0,
   download: false, mini: false, search: false, welcome: false, guide: false

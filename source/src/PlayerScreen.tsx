@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { audio } from "./audio";
 import { asset, setAlbumLiked } from "./library";
@@ -9,7 +9,8 @@ import { DownloadIcon } from "./DownloadIcon";
 import { DECK_GEOMETRY, DeckView } from "./DeckView";
 import { useScrub } from "./scrub";
 import { count, t } from "./lang";
-import type { Album } from "./types";
+import type { Fade } from "./state";
+import type { Album, LyricsState } from "./types";
 
 declare global { interface Window { icon: (name: string, size?: number) => string } }
 export const time = (seconds: number) => {
@@ -58,16 +59,62 @@ const demoLines = [
   "—"
 ];
 
+/** how far a crossfade has got (0..1); 1 when none is running */
+export const fadeProgress = (fade: Fade | null) => fade ? Math.min(1, Math.max(0, (performance.now() - fade.start) / 1000 / fade.length)) : 1;
+/** a label in a crossfade: the old text goes out and the new one comes in, in the same place (u: 0..1) */
+export function Blend({ u, from, to }: { u: number; from: React.ReactNode; to: React.ReactNode }) {
+  if (u >= 1) return <>{to}</>;
+  return <span className="blend"><span style={{ opacity: 1 - u }}>{from}</span><span style={{ opacity: u }}>{to}</span></span>;
+}
+
+/** records with more tracks than this draw only the part of the track list and of the rail that can be seen */
+const LONG = 60;
+const ROW = 36;                                          // a track row's height, px (player-reference.css)
+
+/** The list of tracks on the left. A long one is windowed: only the rows in view (and a few around) exist. Memoised, so
+    the position ticking away 60 times a second does not rebuild it. */
+const TrackList = memo(function TrackList({ album, trackIndex, demo }: { album: Album; trackIndex: number; demo: boolean }) {
+  const box = useRef<HTMLDivElement>(null);
+  const n = album.tracks.length, long = n > LONG;
+  const [first, setFirst] = useState(0);
+  const firstRow = (scrollTop: number) => Math.max(0, Math.floor((scrollTop - 8) / ROW) - 12);
+  useEffect(() => {
+    const list = box.current;
+    if (!list) return;
+    if (!long) { const current = list.querySelector<HTMLElement>(".trk.on"); if (current) list.scrollTop = current.offsetTop - list.clientHeight * .30; return; }
+    list.scrollTo({ top: 8 + trackIndex * ROW - list.clientHeight * .30, behavior: "instant" });
+    setFirst(firstRow(list.scrollTop));
+  }, [trackIndex, album.id]);
+  const rows = long ? Math.ceil(344 / ROW) + 26 : n;
+  const from = long ? Math.min(first, Math.max(0, n - rows)) : 0, to = Math.min(n, from + rows);
+  return <div className="tracks" ref={box} onScroll={long ? (event) => { const next = firstRow(event.currentTarget.scrollTop); setFirst((now) => now === next ? now : next); } : undefined}>
+    {long && <div style={{ height: from * ROW }} aria-hidden="true" />}
+    {album.tracks.slice(from, to).map((track, k) => { const index = from + k; return <button className={"trk" + (index === trackIndex ? " on" : "")} key={track.id} style={long ? { height: ROW, gridTemplateColumns: `${Math.max(28, String(n).length * 8 + 8)}px 1fr auto` } : undefined}
+      onClick={() => demo ? useApp.setState({ trackIndex: index, position: 0, duration: track.duration }) : void cueTrack(index)}>
+      {index === trackIndex ? <span className="dot" /> : <span className="mono">{String(index + 1).padStart(2, "0")}</span>}
+      <span className="t">{splitTitle(track.title, track.artist ?? album.artist)[0]}<span className="x">{track.artist ? track.artist : splitTitle(track.title, album.artist)[1]}</span></span><span className="mono">{time(track.duration)}</span>
+    </button>; })}
+    {long && <div style={{ height: (n - to) * ROW }} aria-hidden="true" />}
+  </div>;
+});
+
 function TrackCarousel({ album, cover, demo }: { album: Album; cover: string; demo: boolean }) {
   const trackIndex = useApp((state) => state.trackIndex);
+  const fade = useApp((state) => state.fade);
   const ring = useRef<HTMLDivElement>(null);
   const line = useRef<SVGSVGElement>(null);
   const count = album.tracks.length;
+  const lo = count > LONG ? Math.max(0, trackIndex - 10) : 0, hi = count > LONG ? Math.min(count, trackIndex + 11) : count;
   /** the window of five slides along with the active track, clamped at the ends (track 01 sits at the left) */
   const windowCentre = (index: number) => count <= 5 ? (count - 1) / 2 : Math.min(count - 3, Math.max(2, index));
   const motion = useRef({ pos: windowCentre(trackIndex), target: windowCentre(trackIndex), velocity: 0, active: trackIndex });
   const wheel = useRef(0);
-  useEffect(() => { motion.current.target = windowCentre(trackIndex); motion.current.active = trackIndex; }, [trackIndex, count]);
+  useEffect(() => {
+    const m = motion.current;
+    m.target = windowCentre(trackIndex); m.active = trackIndex;
+    // a long playlist keeps only the markers around the active track: a far jump lands at once, no slide past thousands of them
+    if (count > LONG && Math.abs(m.pos - m.target) > 10) { m.pos = m.target; m.velocity = 0; }
+  }, [trackIndex, count]);
   useEffect(() => {
     let handle = 0;
     let last = performance.now();
@@ -78,8 +125,8 @@ function TrackCarousel({ album, cover, demo }: { album: Album; cover: string; de
       const m = motion.current;
       const w = 12;
       m.velocity += (-w * w * (m.pos - m.target) - 2 * w * m.velocity) * dt; m.pos += m.velocity * dt;
-      ring.current?.querySelectorAll<HTMLElement>(".rail-mark").forEach((element, index) => {
-        const d = index - m.pos, [x, y] = at(d);
+      ring.current?.querySelectorAll<HTMLElement>(".rail-mark").forEach((element) => {
+        const d = Number(element.dataset.i) - m.pos, [x, y] = at(d);
         const opacity = Math.max(0, Math.min(1, 1 - (Math.abs(d) - 2.15) / .6));
         element.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`;
         element.style.opacity = opacity.toFixed(3);
@@ -121,20 +168,37 @@ function TrackCarousel({ album, cover, demo }: { album: Album; cover: string; de
         <g mask="url(#rail-mask)"><path className="todo" /><path className="done" /></g>
       </svg>
       <div className="ring" ref={ring}>
-        {album.tracks.map((track, index) => <button className={"rail-mark" + (index === trackIndex ? " on" : "")} key={track.id}
+        {album.tracks.slice(lo, hi).map((track, k) => { const index = lo + k; return <button className={"rail-mark" + (index === trackIndex ? " on" : "")} key={track.id} data-i={index}
           title={String(index + 1).padStart(2, "0") + " · " + track.title} aria-label={t("Track") + " " + (index + 1) + ": " + track.title} onClick={() => choose(index)}>
           <span className="num mono">{String(index + 1).padStart(2, "0")}</span>
           <span className="dot">{index === trackIndex && <img src={cover} alt="" />}</span>
-        </button>)}
+        </button>; })}
       </div>
     </div>
-    <div className="carousel-caption rail-caption"><span className="mono">{String(trackIndex + 1).padStart(2, "0")}</span>{splitTitle(album.tracks[trackIndex]?.title || "", album.artist)[0]}</div>
+    <div className="carousel-caption rail-caption">{(() => {
+      const caption = (index: number) => <><span className="mono">{String(index + 1).padStart(2, "0")}</span>{splitTitle(album.tracks[index]?.title || "", album.artist)[0]}</>;
+      const u = fadeProgress(fade), e = u * u * (3 - 2 * u);
+      return fade && u < 1 && fade.to === trackIndex ? <Blend u={e} from={caption(fade.from)} to={caption(trackIndex)} /> : caption(trackIndex);
+    })()}</div>
   </>;
 }
+/** The lyrics column. In a crossfade the old track's lyrics (still running with it) fade out while the new ones fade in, one
+    over the other; the layer of the track that is playing keeps its place in the tree, so it does not start over at the end. */
 function LyricsColumn({ demo }: { demo: boolean }) {
   const lyrics = useApp((state) => state.lyrics);
   const position = useApp((state) => state.position);
+  const fade = useApp((state) => state.fade);
+  const trackIndex = useApp((state) => state.trackIndex);
+  const u = fadeProgress(fade), e = u * u * (3 - 2 * u);
+  const blending = !demo && !!fade && u < 1 && fade.to === trackIndex;
+  return <>
+    {blending && fade ? <LyricsLayer key="old" lyrics={fade.lyrics} position={fade.fromPos + u * fade.length} demo={false} opacity={1 - e} />  : null}
+    <LyricsLayer key="now" lyrics={lyrics} position={position} demo={demo} opacity={blending ? e : 1} />
+  </>;
+}
+function LyricsLayer({ lyrics, position, demo, opacity }: { lyrics: LyricsState; position: number; demo: boolean; opacity: number }) {
   const inner = useRef<HTMLDivElement>(null);
+  const fading = opacity < 1;                      // a layer in the middle of a crossfade takes no clicks
   const lines = demo ? demoLines.map((text, index) => ({ text, time: index * 20 })) :
     lyrics.mode === "synced" ? lyrics.lines :
     lyrics.mode === "plain" ? lyrics.plain.split(/\r?\n/).filter(Boolean).map((text, index) => ({ text, time: index })) : [];
@@ -142,14 +206,26 @@ function LyricsColumn({ demo }: { demo: boolean }) {
   if (!demo && lyrics.mode === "synced") {
     for (let i = 0; i < lines.length; i++) if (lines[i].time <= position) active = i;
   }
+  const placed = useRef(false);
   useEffect(() => {
     const element = inner.current;
     const current = element?.querySelector<HTMLElement>(".ly.on");
     // keep the active line on the middle of the lyrics box (column or band)
-    if (element && current) element.style.transform = "translateY(" + ((element.parentElement?.clientHeight ?? 400) * .5 - current.offsetTop - current.offsetHeight / 2) + "px)";
+    if (element && current) {
+      const shift = "translateY(" + ((element.parentElement?.clientHeight ?? 400) * .5 - current.offsetTop - current.offsetHeight / 2) + "px)";
+      // the first time (a layer that has just appeared: the old lyrics at the start of a crossfade) it stands on its line at once:
+      // sliding there from the top would show the lyrics scrolling again
+      if (!placed.current) {
+        element.style.transition = "none"; element.style.transform = shift;
+        void element.offsetHeight;                      // the move is taken without the slide before the slide is switched back on
+        element.style.transition = "";
+        placed.current = true;
+      } else element.style.transform = shift;
+    }
   }, [active, lines.length]);
-  if (!lines.length) return <section className="lyrics"><span className="micro" style={{ position: "absolute", top: "38%" }}>{lyrics.mode === "loading" ? t("Loading lyrics…") : t("No lyrics")}</span></section>;
-  return <section className="lyrics"><div className="inner" ref={inner}>
+  const layer = { opacity, pointerEvents: fading ? "none" as const : undefined };
+  if (!lines.length) return <section className="lyrics" style={layer}><span className="micro" style={{ position: "absolute", top: "38%" }}>{lyrics.mode === "loading" ? t("Loading lyrics…") : t("No lyrics")}</span></section>;
+  return <section className="lyrics" style={layer}><div className="inner" ref={inner}>
     {lines.map((line, index) => {
       const distance = Math.abs(index - active);
       const opacity = [1, .46, .28, .16, .09, .05][Math.min(distance, 5)];
@@ -173,15 +249,15 @@ export function PlayerScreen({ album, onBack, onEdit, demo = false }: {
   const repeat = useApp((state) => state.repeat);
   const [muted, setMuted] = useState(false);
   const lastVolume = useRef(.78);
-  const tracks = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const list = tracks.current, current = list?.querySelector<HTMLElement>(".trk.on");
-    if (list && current) list.scrollTop = current.offsetTop - list.clientHeight * .30;
-  }, [trackIndex, album.id]);
   const cover = coverSrc(album);
-  const total = album.tracks.reduce((sum, track) => sum + track.duration, 0);
+  const total = useMemo(() => album.tracks.reduce((sum, track) => sum + track.duration, 0), [album]);
   const playing = phase === "PLAYING";
-  const progress = duration ? Math.min(100, position / duration * 100) : 0;
+  const fade = useApp((state) => state.fade);
+  const ownProgress = duration ? Math.min(100, position / duration * 100) : 0;
+  // in a crossfade the bar and the clock run on from the track going out into the new one, instead of jumping back to the start
+  const fu = fadeProgress(fade), fe = fu * fu * (3 - 2 * fu), blending = !!fade && fu < 1 && fade.to === trackIndex;
+  const oldElapsed = fade ? fade.fromPos + fu * fade.length : 0;
+  const progress = blending && fade ? (1 - fe) * Math.min(100, oldElapsed / Math.max(1, fade.fromDur) * 100) + fe * ownProgress : ownProgress;
   const scrub = useScrub(duration, (seconds) => seek(seconds));
   const shown = scrub.preview !== null && duration ? Math.min(100, scrub.preview / duration * 100) : progress;
   const layout = deckLayout();
@@ -199,12 +275,7 @@ export function PlayerScreen({ album, onBack, onEdit, demo = false }: {
       <div className="album-artist">{album.artist}</div>
       {album.genres?.length ? <div className="album-genres">{album.genres.map((genre) => <span className="gp-chip small" key={genre}>{genre}</span>)}</div> : null}
       <div className="album-meta"><span className="mono">{album.year || ""}</span><span className="mono">{count(album.tracks.length, "track")}</span><span className="mono">{time(total)}</span></div>
-      <div className="tracks" ref={tracks}>{album.tracks.map((track, index) =>
-        <button className={"trk" + (index === trackIndex ? " on" : "")} key={track.id}
-          onClick={() => demo ? useApp.setState({ trackIndex: index, position: 0, duration: track.duration }) : void cueTrack(index)}>
-          {index === trackIndex ? <span className="dot" /> : <span className="mono">{String(index + 1).padStart(2, "0")}</span>}
-          <span className="t">{splitTitle(track.title, track.artist ?? album.artist)[0]}<span className="x">{track.artist ? track.artist : splitTitle(track.title, album.artist)[1]}</span></span><span className="mono">{time(track.duration)}</span>
-        </button>)}</div>
+      <TrackList album={album} trackIndex={trackIndex} demo={demo} />
     </section>
     <div className="stage"><div className="group" style={layout.group}>
       <div className="tilt"><DeckView album={album} cover={cover} visualDemo={demo} form={layout.form} width={layout.width} rotate={layout.rotate} /></div>
@@ -223,14 +294,14 @@ export function PlayerScreen({ album, onBack, onEdit, demo = false }: {
         aria-label={repeat === "off" ? t("Repeat") : repeat === "all" ? t("Repeat the album") : t("Repeat this track")}
         title={repeat === "off" ? t("Repeat: off") : repeat === "all" ? t("Repeat: loop the album") : t("Repeat: this track")}
         onClick={cycleRepeat}><RepeatIcon one={repeat === "one"} /></button>
-      <span className="time mono">{time(scrub.preview ?? position)}</span>
+      <span className="time mono">{blending && fade && scrub.preview === null ? <Blend u={fe} from={time(oldElapsed)} to={time(position)} /> : time(scrub.preview ?? position)}</span>
       <div className={"bar" + (scrub.dragging ? " dragging" : "")} role="slider" tabIndex={0} aria-label={t("Seek")} aria-valuemin={0} aria-valuemax={duration || 0} aria-valuenow={position}
         {...scrub.handlers}
         onKeyDown={(event) => { if (event.key === "ArrowRight") { event.stopPropagation(); seek(position + 5); } if (event.key === "ArrowLeft") { event.stopPropagation(); seek(position - 5); } }}>
         <div className="track"><div className="fill" style={{ width: shown + "%" }} /><div className="thumb" style={{ left: shown + "%" }} /></div>
         {scrub.hover && duration > 0 && <span className="bar-tip mono" style={{ left: scrub.hover.x * 100 + "%" }}>{time(scrub.preview ?? scrub.hover.seconds)}</span>}
       </div>
-      <span className="time mono">{time(duration)}</span><span className="sep" />
+      <span className="time mono">{blending && fade ? <Blend u={fe} from={time(fade.fromDur)} to={time(duration)} /> : time(duration)}</span><span className="sep" />
       <button className="icon-btn" aria-label={t("Like album")} onClick={async () => {
         // flip locally, keeping the crate's order (the backend returns albums in storage order)
         const flip = (liked: boolean) => useApp.setState({ albums: useApp.getState().albums.map((item) => item.id === album.id ? { ...item, liked } : item) });

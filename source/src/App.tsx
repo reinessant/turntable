@@ -14,6 +14,8 @@ import { TabBar } from "./TabBar";
 import { PluginsScreen } from "./PluginsScreen";
 import { SettingsScreen } from "./SettingsScreen";
 import { Particles } from "./Particles";
+import { CrossfadeSpiral } from "./CrossfadeSpiral";
+import { useIdleFade } from "./idleFade";
 import { Search } from "./Search";
 import { DownloadSheet, DownloadsScreen } from "./DownloadsScreen";
 import { loadDownloads, seedDemoDownloads } from "./downloads";
@@ -98,6 +100,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [message]);
   const mini = useApp((state) => state.mini);
+  useIdleFade();
   // a language change rebuilds the screens (every text is read once, when it is drawn)
   const lang = useLang((state) => state.lang);
   const searchOpen = useApp((state) => state.search);
@@ -334,6 +337,7 @@ export default function App() {
       if (active.kind === "playlist") { setEditingPlaylist(active.id); useApp.setState({ screen: "playlist" }); }
       else { setEditingId(active.id); useApp.setState({ screen: "import" }); }
     }} demo={visualDemo} /></ErrorBoundary>}
+    {screen === "player" && active && !transition && <CrossfadeSpiral />}
     {transition && active && <RecordTransition album={active} direction={transition === "to-player" ? "in" : "out"} focused={focused} timeline={timeline}
       onError={(error) => useApp.setState({ message: error.message })}
       onTap={() => {

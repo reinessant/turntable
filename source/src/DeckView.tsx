@@ -6,6 +6,7 @@ import { repaintOnResize } from "./labelArt";
 
 /** The label art is printed edge to edge on the 100 mm label. */
 const LABEL_ART_MM = 100;
+import { albumProgress, albumTimes } from "./bulk";
 import { pauseOrResume, seekAlbumProgress, toggleCue } from "./player";
 import { useApp } from "./state";
 import { useSettings, vinylOf } from "./settings";
@@ -68,20 +69,17 @@ export function DeckView({ album, cover, visualDemo = false, form = "landscape",
   const finish = useSettings((state) => state.finish);
   const vinyl = useSettings((state) => state.vinyl);
   const playing = phase === "PLAYING";
-  const total = album.tracks.reduce((sum, track) => sum + Math.max(track.duration, 1), 0);
-  const before = album.tracks.slice(0, trackIndex).reduce((sum, track) => sum + Math.max(track.duration, 1), 0);
-  const radius = 146 - Math.min(1, (before + position) / total) * 84;
+  const radius = 146 - albumProgress(album, trackIndex, position) * 84;
   const armPosition = stylusAt(dragRadius ?? radius, g);
   const deckScale = width / g.w;
   // the deck may be turned a little around its spindle; the record's on-screen angle includes that turn
   useEffect(() => { deckMotion.offset = rotate * Math.PI / 180; return () => { deckMotion.offset = 0; }; }, [rotate]);
   useEffect(() => {
     if (!host.current || !window.buildDeck) return;
-    let sum = 0;
-    const fractions = album.tracks.slice(0, -1).map((track) => {
-      sum += Math.max(track.duration, 1);
-      return sum / total;
-    });
+    // the gap between two tracks is a ring on the record; a very long playlist would be all gaps, so only some are drawn
+    const sums = albumTimes(album), total = sums[sums.length - 1], step = Math.max(1, Math.ceil((album.tracks.length - 1) / 120));
+    const fractions: number[] = [];
+    for (let i = 1; i < album.tracks.length; i += step) fractions.push(sums[i] / total);
     deck.current = window.buildDeck(host.current, {
       finish, vinyl: vinylOf(vinyl), widthPx: width, cover, trackFractions: fractions, layout: form,
       playing: false, stylusRadiusMm: radius

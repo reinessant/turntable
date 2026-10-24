@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { audio } from "./audio";
-import { coverSrc, time } from "./PlayerScreen";
+import { Blend, coverSrc, fadeProgress, time } from "./PlayerScreen";
 import { asset } from "./library";
 import { albumProgress, cycleRepeat, nextTrack, pauseOrResume, previousTrack, seek, startAlbumNow, cycleShuffle } from "./player";
 import { useApp } from "./state";
@@ -32,6 +32,7 @@ export function MiniPlayer({ preview = false }: { preview?: boolean }) {
   const shuffle = useApp((s) => s.shuffle);
   const repeat = useApp((s) => s.repeat);
   const lyrics = useApp((s) => s.lyrics);
+  const fade = useApp((s) => s.fade);
   const album = albums.find((a) => a.id === activeId);
   const track = album?.tracks[trackIndex];
   const playing = phase === "PLAYING";
@@ -53,7 +54,11 @@ export function MiniPlayer({ preview = false }: { preview?: boolean }) {
   const pack = (fill: number) => Math.sqrt(.12 + .88 * fill);             // area-true radius, 0.35..1
   const leftR = pack(1 - p), rightR = pack(p);
   const scrub = useScrub(duration, (seconds) => seek(seconds));
-  const seekShown = duration ? Math.min(1, (scrub.preview ?? position) / duration) : 0;
+  const ownSeek = duration ? Math.min(1, (scrub.preview ?? position) / duration) : 0;
+  // in a crossfade the line and the clock run on from the track going out into the new one, not back to the start
+  const fu = fadeProgress(fade), fe = fu * fu * (3 - 2 * fu), blending = !!fade && fu < 1 && fade.to === trackIndex && scrub.preview === null;
+  const oldElapsed = fade ? fade.fromPos + fu * fade.length : 0;
+  const seekShown = blending && fade ? (1 - fe) * Math.min(1, oldElapsed / Math.max(1, fade.fromDur)) + fe * ownSeek : ownSeek;
   // the line being sung, and when the next one starts (the strip slides through a long line while it's sung)
   // blank timestamps (an instrumental gap) keep the last sung line on the strip
   const lineIndex = lyrics.mode === "synced" ? lyrics.lines.reduce((k, l, i) => (l.time <= position && l.text.trim() ? i : k), -1) : -1;
@@ -123,7 +128,7 @@ export function MiniPlayer({ preview = false }: { preview?: boolean }) {
         <i style={{ width: volume * 100 + "%" }} /></span><span>{Math.round(volume * 100)}</span></div>
         : <>
           <div className="cr-lcd-row"><Marquee text={track ? `${String(trackIndex + 1).padStart(2, "0")} · ${cleanTitle(track.title)} — ${track.artist ?? album!.artist}` : t("No tape · press ⏏ to load an album")} />
-            <span className="cr-time">{track ? `${time(scrub.preview ?? position)} / ${time(duration)}` : "--:--"}</span></div>
+            <span className="cr-time">{track ? (blending && fade ? <Blend u={fe} from={`${time(oldElapsed)} / ${time(fade.fromDur)}`} to={`${time(position)} / ${time(duration)}`} /> : `${time(scrub.preview ?? position)} / ${time(duration)}`) : "--:--"}</span></div>
           {line?.text ? <LyricLine text={line.text} start={line.time} end={lineEnd} position={position} />
             : <div className="cr-lyric dim"><span>{album?.title || " "}</span></div>}
         </>}

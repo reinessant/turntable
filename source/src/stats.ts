@@ -132,10 +132,11 @@ let run: Run | null = null;
 let lastTick = 0, lastActive = 0, sessionSec = 0;
 
 /** `skippable`: the run ended because the listener moved on (not because the record was stopped or put back). */
-function endRun(skippable = true): void {
+function endRun(skippable = true, crossfaded = false): void {
   if (!run) return;
   const stat = data.tracks[run.key];
-  const heardToTheEnd = run.duration > 0 && run.lastPosition >= run.duration - 3;
+  // a crossfade begins a few seconds before the end of the track: it was still played to its end
+  const heardToTheEnd = crossfaded || (run.duration > 0 && run.lastPosition >= run.duration - 3);
   if (stat) {
     if (heardToTheEnd) data.finished++;
     // left within the first half-minute, and not because it ended: a skip
@@ -161,7 +162,8 @@ function count(seconds: number): void {
 
   // a new run: another track, or the same one started over (repeat, or a wind back to the start)
   const restarted = run && run.key === key && state.position < run.lastPosition - 5;
-  if (!run || run.key !== key || restarted) { endRun(); run = { key, sec: 0, counted: false, lastPosition: state.position, duration: track.duration || state.duration }; }
+  const crossfaded = !!state.fade && state.fade.to === state.trackIndex && performance.now() - state.fade.start < 1500;
+  if (!run || run.key !== key || restarted) { endRun(true, crossfaded); run = { key, sec: 0, counted: false, lastPosition: state.position, duration: track.duration || state.duration }; }
   run.sec += seconds; run.lastPosition = state.position; run.duration = state.duration || track.duration;
 
   // sessions: ten quiet minutes end one
